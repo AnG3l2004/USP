@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>alertiX — Admin Panel</title>
+  <meta name="description" content="alertiX — администраторски панел за известяване при природни бедствия (примерни данни)." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#adminContent">Към съдържанието</a>
+
+  <!-- Inline SVG icon set (no external deps) -->
+  <svg aria-hidden="true" focusable="false" style="position:absolute; width:0; height:0; overflow:hidden;">
+    <symbol id="i-gauge" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M12 4a9 9 0 0 0-9 9v6h18v-6a9 9 0 0 0-9-9Zm7 13H5v-4a7 7 0 0 1 14 0v4Zm-7-9a1 1 0 0 0-1 1v3.6l-1.7 1.7 1.4 1.4 2-2A1 1 0 0 0 13 13V9a1 1 0 0 0-1-1Z"/>
+    </symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M12 2 1 21h22L12 2Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4Z"/>
+    </symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M12 22a2.2 2.2 0 0 0 2.2-2.2h-4.4A2.2 2.2 0 0 0 12 22Zm7-6.2V11a7 7 0 0 0-5-6.7V3.2a2 2 0 0 0-4 0v1.1A7 7 0 0 0 5 11v4.8l-1.6 1.6V19h19v-1.6L19 15.8Z"/>
+    </symbol>
+    <symbol id="i-users" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4ZM8 11a3.5 3.5 0 1 0-3.5-3.5A3.5 3.5 0 0 0 8 11Zm8 2c-3.3 0-6 1.8-6 4v2h12v-2c0-2.2-2.7-4-6-4ZM8 13c-3 0-5.5 1.6-5.5 3.5V19h6.5v-2c0-1.4.6-2.7 1.7-3.7A7.4 7.4 0 0 0 8 13Z"/>
+    </symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M4 19h16v2H2V3h2v16Zm4-2H6v-6h2v6Zm5 0h-2V7h2v10Zm5 0h-2V10h2v7Z"/>
+    </symbol>
+    <symbol id="i-map" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M9 4 15 2l6 2v18l-6-2-6 2-6-2V2l6 2Zm0 2.2v13.6l6-2V4.2l-6 2Z"/>
+    </symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.5-2.3.7a7.6 7.6 0 0 0-1.7-1L15 3h-6l-.4 2.7a7.6 7.6 0 0 0-1.7 1L4.6 6 2.6 9.5l2 1.5a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.5 2.3-.7a7.6 7.6 0 0 0 1.7 1L9 21h6l.4-2.7a7.6 7.6 0 0 0 1.7-1l2.3.7 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 15.5 12 3.5 3.5 0 0 1 12 15.5Z"/>
+    </symbol>
+    <symbol id="i-user" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12Zm0 2c-4.1 0-7.5 2.2-7.5 5v1h15v-1c0-2.8-3.4-5-7.5-5Z"/>
+    </symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M14.7 6.3 13.3 4.9 6.2 12l7.1 7.1 1.4-1.4L9 12l5.7-5.7Z"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6Z"/>
+    </symbol>
+  </svg>
+
+  <div class="admin">
+    <!-- Sidebar (Admin UI) -->
+    <aside class="sidebar" aria-label="Admin Sidebar">
+      <div class="sidebar__brand">
+        <div class="brand" aria-label="alertiX Admin">
+          <div class="brand__mark" aria-hidden="true"></div>
+          <div class="brand__title">
+            <strong>alertiX Admin</strong>
+            <span>Мониторинг • Управление</span>
+          </div>
+        </div>
+        <a class="btn btn--sm btn--ghost" href="index.html" title="Потребителски интерфейс">
+          <svg class="icon"><use href="#i-arrow-left"></use></svg>
+          <span>User</span>
+        </a>
+      </div>
+
+      <div class="chip" style="margin: 6px 4px 12px;" title="Статус на системата">
+        <span class="dot" aria-hidden="true"></span>
+        <span>Мониторинг: online</span>
+      </div>
+
+      <nav class="sidebar__nav" aria-label="Admin меню">
+        <a class="slink" href="#adash" data-admin-nav="adash" aria-current="page">
+          <span style="display:inline-flex; align-items:center; gap:10px;">
+            <svg class="icon"><use href="#i-gauge"></use></svg>
+            <span>Dashboard</span>
+          </span>
+          <small>Обзор</small>
+        </a>
+        <a class="slink" href="#adis" data-admin-nav="adis">
+          <span style="display:inline-flex; align-items:center; gap:10px;">
+            <svg class="icon"><use href="#i-alert"></use></svg>
+            <span>Бедствия</span>
+          </span>
+          <small>CRUD</small>
+        </a>
+        <a class="slink" href="#aalerts" data-admin-nav="aalerts">
+          <span style="display:inline-flex; align-items:center; gap:10px;">
+            <svg class="icon"><use href="#i-bell"></use></svg>
+            <span>Известия</span>
+          </span>
+          <small>Push</small>
+        </a>
+        <a class="slink" href="#ausers" data-admin-nav="ausers">
+          <span style="display:inline-flex; align-items:center; gap:10px;">
+            <svg class="icon"><use href="#i-users"></use></svg>
+            <span>Потребители</span>
+          </span>
+          <small>Роли</small>
+        </a>
+        <a class="slink" href="#aanalytics" data-admin-nav="aanalytics">
+          <span style="display:inline-flex; align-items:center; gap:10px;">
+            <svg class="icon"><use href="#i-chart"></use></svg>
+            <span>Анализи</span>
+          </span>
+          <small>Графики</small>
+        </a>
+        <a class="slink" href="#amap" data-admin-nav="amap">
+          <span style="display:inline-flex; align-items:center; gap:10px;">
+            <svg class="icon"><use href="#i-map"></use></svg>
+            <span>Региони</span>
+          </span>
+          <small>Зони</small>
+        </a>
+        <a class="slink" href="#asystem" data-admin-nav="asystem">
+          <span style="display:inline-flex; align-items:center; gap:10px;">
+            <svg class="icon"><use href="#i-gear"></use></svg>
+            <span>Система</span>
+          </span>
+          <small>Logs</small>
+        </a>
+        <a class="slink" href="#aprofile" data-admin-nav="aprofile">
+          <span style="display:inline-flex; align-items:center; gap:10px;">
+            <svg class="icon"><use href="#i-user"></use></svg>
+            <span>Профил</span>
+          </span>
+          <small>Сигурност</small>
+        </a>
+      </nav>
+
+      <div style="margin-top: 14px; padding: 0 4px; color: var(--muted); font-size: 12px;">
+        Демо: без backend. Действията обновяват UI локално.
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="admin__main" id="adminContent" role="main">
+      <div class="container">
+        <div class="admin__top">
+          <div>
+            <h1 id="adminTitle">Dashboard</h1>
+            <p id="adminSubtitle">Активни бедствия, известия, статистика и мониторинг.</p>
+          </div>
+          <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn--sm btn--blue" id="btnAdminSendAlert">
+              <svg class="icon"><use href="#i-bell"></use></svg>
+              <span>Изпрати известие</span>
+            </button>
+            <button class="btn btn--sm btn--primary" id="btnAdminAddDisaster">
+              <svg class="icon"><use href="#i-plus"></use></svg>
+              <span>Добави бедствие</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dashboard -->
+        <section class="section is-active" id="admin-section-adash" data-admin-section="adash" aria-label="Admin Dashboard">
+          <div class="stats" aria-label="Ключови показатели">
+            <div class="stat">
+              <div class="k">Активни бедствия</div>
+              <div class="v" id="kpiActiveDisasters">0</div>
+              <div class="hint">в момента</div>
+            </div>
+            <div class="stat">
+              <div class="k">Активни предупреждения</div>
+              <div class="v" id="kpiActiveAlerts">0</div>
+              <div class="hint">последни 24ч</div>
+            </div>
+            <div class="stat">
+              <div class="k">Критични</div>
+              <div class="v" id="kpiCritical">0</div>
+              <div class="hint">изискват действие</div>
+            </div>
+            <div class="stat">
+              <div class="k">Потребители</div>
+              <div class="v" id="kpiUsers">0</div>
+              <div class="hint">регистрирани (демо)</div>
+            </div>
+          </div>
+
+          <div class="two-col" style="margin-top: 14px;">
+            <div class="panel">
+              <div class="panel__head">
+                <div>
+                  <h2>Активни бедствия</h2>
+                  <p>Най-важните текущи събития (демо).</p>
+                </div>
+                <button class="btn btn--sm" data-admin-jump="adis">Управление</button>
+              </div>
+              <div class="table-wrap">
+                <table aria-label="Таблица: активни бедствия">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Тип</th>
+                      <th>Място</th>
+                      <th>Регион</th>
+                      <th>Ниво</th>
+                      <th>Време</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminActiveDisastersTable">
+                    <!-- JS inject -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel__head">
+                <div>
+                  <h2>Система за мониторинг</h2>
+                  <p>Състояние на сензори и канали (демо).</p>
+                </div>
+                <button class="btn btn--sm btn--blue" id="btnSimulateTick">Симулирай</button>
+              </div>
+              <div class="list" id="adminMonitoringList">
+                <!-- JS inject -->
+              </div>
+            </div>
+          </div>
+
+          <div style="height: 14px"></div>
+          <div class="panel">
+            <div class="panel__head">
+              <div>
+                <h2>Последни известия</h2>
+                <p>Изпратени/планирани уведомления (демо).</p>
+              </div>
+              <button class="btn btn--sm" data-admin-jump="aalerts">Управление</button>
+            </div>
+            <div class="table-wrap">
+              <table aria-label="Таблица: последни известия">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Време</th>
+                    <th>Регион</th>
+                    <th>Тип</th>
+                    <th>Ниво</th>
+                    <th>Заглавие</th>
+                    <th>Статус</th>
+                  </tr>
+                </thead>
+                <tbody id="adminLatestAlertsTable">
+                  <!-- JS inject -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Disaster Management -->
+        <section class="section" id="admin-section-adis" data-admin-section="adis" aria-label="Управление на бедствия">
+          <div class="panel">
+            <div class="panel__head">
+              <div>
+                <h2>Управление на бедствия</h2>
+                <p>Добавяне, редактиране, изтриване и история.</p>
+              </div>
+              <button class="btn btn--sm btn--primary" data-open-modal="modal-admin-disaster">Добави бедствие</button>
+            </div>
+
+            <div class="table-wrap">
+              <table aria-label="Таблица: бедствия">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Вид</th>
+                    <th>Време</th>
+                    <th>Място</th>
+                    <th>Засегнат регион</th>
+                    <th>Щети</th>
+                    <th>Продълж.</th>
+                    <th>Ниво</th>
+                    <th>Статус</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody id="adminDisastersTable">
+                  <!-- JS inject -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Alerts Management -->
+        <section class="section" id="admin-section-aalerts" data-admin-section="aalerts" aria-label="Управление на известия">
+          <div class="panel">
+            <div class="panel__head">
+              <div>
+                <h2>Управление на известия</h2>
+                <p>Изпращане, push нотификации, по региони и история.</p>
+              </div>
+              <button class="btn btn--sm btn--blue" data-open-modal="modal-admin-alert">Изпрати известие</button>
+            </div>
+
+            <div class="two-col">
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Известия по региони</h2>
+                    <p>Обобщение (демо).</p>
+                  </div>
+                </div>
+                <div class="list" id="adminAlertsByRegion">
+                  <!-- JS inject -->
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Push нотификации</h2>
+                    <p>Симулация на канал.</p>
+                  </div>
+                </div>
+                <div class="list" id="adminPushLog">
+                  <!-- JS inject -->
+                </div>
+              </div>
+            </div>
+
+            <div style="height: 14px"></div>
+            <div class="panel">
+              <div class="panel__head">
+                <div>
+                  <h2 style="font-size:14px">История на известията</h2>
+                  <p>Последни записи (демо).</p>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table aria-label="Таблица: история на известията">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Време</th>
+                      <th>Регион</th>
+                      <th>Тип</th>
+                      <th>Ниво</th>
+                      <th>Текст</th>
+                      <th>Статус</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminAlertsTable">
+                    <!-- JS inject -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Users -->
+        <section class="section" id="admin-section-ausers" data-admin-section="ausers" aria-label="Управление на потребители">
+          <div class="panel">
+            <div class="panel__head">
+              <div>
+                <h2>Управление на потребители</h2>
+                <p>Списък, роли, блокиране и активност (демо).</p>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table aria-label="Таблица: потребители">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Име</th>
+                    <th>Имейл</th>
+                    <th>Регион</th>
+                    <th>Роля</th>
+                    <th>Статус</th>
+                    <th>Активност</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody id="adminUsersTable">
+                  <!-- JS inject -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Analytics -->
+        <section class="section" id="admin-section-aanalytics" data-admin-section="aanalytics" aria-label="Статистика и анализи">
+          <div class="panel">
+            <div class="panel__head">
+              <div>
+                <h2>Статистика и анализи</h2>
+                <p>Най-засегнати региони, честота, годишни справки и графики (демо).</p>
+              </div>
+              <button class="btn btn--sm" id="btnAdminRefreshAnalytics">Обнови</button>
+            </div>
+
+            <div class="two-col">
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Най-засегнати региони</h2>
+                    <p>Събития по град.</p>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table aria-label="Таблица: региони">
+                    <thead><tr><th>Регион</th><th>Събития</th><th>Макс. ниво</th></tr></thead>
+                    <tbody id="adminAnalyticsRegions">
+                      <!-- JS inject -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Честота на бедствията</h2>
+                    <p>По тип (демо).</p>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table aria-label="Таблица: типове">
+                    <thead><tr><th>Тип</th><th>Брой (12 м.)</th><th>Средно/год.</th></tr></thead>
+                    <tbody id="adminAnalyticsTypes">
+                      <!-- JS inject -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div style="height: 14px"></div>
+            <div class="panel">
+              <div class="panel__head">
+                <div>
+                  <h2 style="font-size:14px">Анализи и графики</h2>
+                  <p>Canvas графика (демо) — събития по месеци.</p>
+                </div>
+              </div>
+              <div class="canvas-wrap">
+                <canvas id="adminAnalyticsChart" width="1000" height="320" aria-label="Графика: събития по месеци"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Map & Regions -->
+        <section class="section" id="admin-section-amap" data-admin-section="amap" aria-label="Управление на карти и региони">
+          <div class="panel">
+            <div class="panel__head">
+              <div>
+                <h2>Управление на карти и региони</h2>
+                <p>Добавяне/редактиране на региони, безопасни и рискови зони (демо).</p>
+              </div>
+              <button class="btn btn--sm btn--blue" data-open-modal="modal-admin-region">Добави регион</button>
+            </div>
+
+            <div class="two-col">
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Региони</h2>
+                    <p>Списък (демо).</p>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table aria-label="Таблица: региони">
+                    <thead><tr><th>ID</th><th>Име</th><th>Категория</th><th>Град</th><th>Бележка</th><th>Действия</th></tr></thead>
+                    <tbody id="adminRegionsTable">
+                      <!-- JS inject -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Зони</h2>
+                    <p>Безопасни/рискови/убежища (демо).</p>
+                  </div>
+                </div>
+                <div class="list" id="adminZonesList">
+                  <!-- JS inject -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- System -->
+        <section class="section" id="admin-section-asystem" data-admin-section="asystem" aria-label="Система и настройки">
+          <div class="panel">
+            <div class="panel__head">
+              <div>
+                <h2>Система и настройки</h2>
+                <p>Настройки, управление на API, backup и логове (демо).</p>
+              </div>
+              <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn--sm" id="btnAdminBackup">Backup</button>
+                <button class="btn btn--sm btn--danger" id="btnAdminRotateLogs">Rotate logs</button>
+              </div>
+            </div>
+
+            <div class="two-col">
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Настройки на приложението</h2>
+                    <p>Примерни параметри.</p>
+                  </div>
+                </div>
+                <form class="form" id="adminSettingsForm">
+                  <div class="field">
+                    <label class="label" for="setChannel">Канал</label>
+                    <select class="control" id="setChannel" name="channel">
+                      <option value="push">Push</option>
+                      <option value="sms">SMS</option>
+                      <option value="email">Email</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="label" for="setRetention">Retention (дни)</label>
+                    <input class="control" id="setRetention" name="retention" type="number" min="7" max="365" value="90" />
+                  </div>
+                  <div class="field field--full">
+                    <label class="label" for="setApiKey">API ключ (демо)</label>
+                    <input class="control" id="setApiKey" name="apiKey" value="demo_************" />
+                  </div>
+                  <div class="form__actions">
+                    <button class="btn btn--sm" type="reset">Отмени</button>
+                    <button class="btn btn--sm btn--blue" type="submit">Запази</button>
+                  </div>
+                </form>
+              </div>
+
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Системни логове</h2>
+                    <p>Последни събития (демо).</p>
+                  </div>
+                </div>
+                <div class="list" id="adminLogsList">
+                  <!-- JS inject -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Admin Profile -->
+        <section class="section" id="admin-section-aprofile" data-admin-section="aprofile" aria-label="Администраторски профил">
+          <div class="panel">
+            <div class="panel__head">
+              <div>
+                <h2>Администраторски профил</h2>
+                <p>Лични настройки, сигурност и изход (демо).</p>
+              </div>
+              <button class="btn btn--sm btn--danger" id="btnAdminLogout">Изход</button>
+            </div>
+
+            <div class="two-col">
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Лични настройки</h2>
+                    <p>Пример.</p>
+                  </div>
+                </div>
+                <form class="form" id="adminProfileForm">
+                  <div class="field">
+                    <label class="label" for="aName">Име</label>
+                    <input class="control" id="aName" name="name" value="Admin Operator" />
+                  </div>
+                  <div class="field">
+                    <label class="label" for="aEmail">Имейл</label>
+                    <input class="control" id="aEmail" name="email" type="email" value="admin@disasteralert.bg" />
+                  </div>
+                  <div class="field field--full">
+                    <label class="label" for="a2fa">2FA (демо)</label>
+                    <select class="control" id="a2fa" name="twofa">
+                      <option value="on">Включено</option>
+                      <option value="off">Изключено</option>
+                    </select>
+                  </div>
+                  <div class="form__actions">
+                    <button class="btn btn--sm" type="reset">Отмени</button>
+                    <button class="btn btn--sm btn--blue" type="submit">Запази</button>
+                  </div>
+                </form>
+              </div>
+
+              <div class="panel">
+                <div class="panel__head">
+                  <div>
+                    <h2 style="font-size:14px">Сигурност</h2>
+                    <p>Последни входове (демо).</p>
+                  </div>
+                </div>
+                <div class="list" id="adminSecurityList">
+                  <!-- JS inject -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <footer class="footer" role="contentinfo">
+          <div style="display:flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+            <div>© alertiX (Demo Admin) • HTML/CSS/JS</div>
+            <div><a href="index.html" style="text-decoration: underline; color: var(--text);">Обратно към User UI</a></div>
+          </div>
+        </footer>
+      </div>
+    </main>
+  </div>
+
+  <!-- Admin Modals -->
+  <div class="modal" id="modal-admin-disaster" role="dialog" aria-modal="true" aria-labelledby="modal-admin-disaster-title">
+    <div class="modal__backdrop" data-close-modal></div>
+    <div class="modal__dialog">
+      <div class="modal__head">
+        <strong id="modal-admin-disaster-title">Добавяне / редактиране на бедствие</strong>
+        <button class="btn btn--sm" data-close-modal>Затвори</button>
+      </div>
+      <div class="modal__body">
+        <form class="form" id="adminDisasterForm">
+          <input type="hidden" id="disId" name="id" />
+          <div class="field">
+            <label class="label" for="disType">Вид бедствие</label>
+            <select class="control" id="disType" name="type" required>
+              <option value="earthquake">Земетресение</option>
+              <option value="flood">Наводнение</option>
+              <option value="fire">Пожар</option>
+              <option value="storm">Буря</option>
+              <option value="other">Друго</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="disTime">Време</label>
+            <input class="control" id="disTime" name="time" type="datetime-local" required />
+          </div>
+          <div class="field">
+            <label class="label" for="disPlace">Място</label>
+            <input class="control" id="disPlace" name="place" placeholder="кв./район/координати" required />
+          </div>
+          <div class="field">
+            <label class="label" for="disRegion">Засегнат регион</label>
+            <select class="control" id="disRegion" name="region" required>
+              <option value="Sofia">София</option>
+              <option value="Varna">Варна</option>
+              <option value="Plovdiv">Пловдив</option>
+              <option value="Burgas">Бургас</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="disDamage">Щети</label>
+            <input class="control" id="disDamage" name="damage" placeholder="пример: средни" />
+          </div>
+          <div class="field">
+            <label class="label" for="disDuration">Продължителност</label>
+            <input class="control" id="disDuration" name="duration" placeholder="пример: 2ч" />
+          </div>
+          <div class="field">
+            <label class="label" for="disLevel">Ниво на опасност</label>
+            <select class="control" id="disLevel" name="level" required>
+              <option value="low">Ниско</option>
+              <option value="medium">Средно</option>
+              <option value="high">Високо</option>
+              <option value="critical">Критично</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="disStatus">Статус</label>
+            <select class="control" id="disStatus" name="status" required>
+              <option value="active">Активно</option>
+              <option value="contained">Овладяно</option>
+              <option value="resolved">Приключено</option>
+            </select>
+          </div>
+          <div class="field field--full">
+            <label class="label" for="disNotes">Бележки</label>
+            <textarea class="control" id="disNotes" name="notes" rows="3" placeholder="кратко описание..."></textarea>
+          </div>
+          <div class="form__actions">
+            <button class="btn btn--sm" type="reset">Нулирай</button>
+            <button class="btn btn--sm btn--primary" type="submit">Запази</button>
+          </div>
+        </form>
+      </div>
+      <div class="modal__foot">
+        <button class="btn btn--sm" data-close-modal>Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-admin-alert" role="dialog" aria-modal="true" aria-labelledby="modal-admin-alert-title">
+    <div class="modal__backdrop" data-close-modal></div>
+    <div class="modal__dialog">
+      <div class="modal__head">
+        <strong id="modal-admin-alert-title">Изпращане на известие</strong>
+        <button class="btn btn--sm" data-close-modal>Затвори</button>
+      </div>
+      <div class="modal__body">
+        <form class="form" id="adminAlertForm">
+          <div class="field">
+            <label class="label" for="alRegion">Регион</label>
+            <select class="control" id="alRegion" name="region" required>
+              <option value="Sofia">София</option>
+              <option value="Varna">Варна</option>
+              <option value="Plovdiv">Пловдив</option>
+              <option value="Burgas">Бургас</option>
+              <option value="all">Всички</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="alType">Тип</label>
+            <select class="control" id="alType" name="type" required>
+              <option value="earthquake">Земетресение</option>
+              <option value="flood">Наводнение</option>
+              <option value="fire">Пожар</option>
+              <option value="storm">Буря</option>
+              <option value="other">Друго</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="alLevel">Ниво</label>
+            <select class="control" id="alLevel" name="level" required>
+              <option value="low">Ниско</option>
+              <option value="medium">Средно</option>
+              <option value="high">Високо</option>
+              <option value="critical">Критично</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="alStatus">Статус</label>
+            <select class="control" id="alStatus" name="status" required>
+              <option value="sent">Изпратено</option>
+              <option value="scheduled">Планирано</option>
+            </select>
+          </div>
+          <div class="field field--full">
+            <label class="label" for="alTitle">Заглавие</label>
+            <input class="control" id="alTitle" name="title" placeholder="Кратко заглавие" required />
+          </div>
+          <div class="field field--full">
+            <label class="label" for="alBody">Съобщение</label>
+            <textarea class="control" id="alBody" name="body" rows="3" placeholder="Текст на уведомлението..." required></textarea>
+          </div>
+          <div class="form__actions">
+            <button class="btn btn--sm" type="reset">Нулирай</button>
+            <button class="btn btn--sm btn--blue" type="submit">Изпрати</button>
+          </div>
+        </form>
+      </div>
+      <div class="modal__foot">
+        <button class="btn btn--sm" data-close-modal>Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-admin-region" role="dialog" aria-modal="true" aria-labelledby="modal-admin-region-title">
+    <div class="modal__backdrop" data-close-modal></div>
+    <div class="modal__dialog">
+      <div class="modal__head">
+        <strong id="modal-admin-region-title">Добавяне / редактиране на регион</strong>
+        <button class="btn btn--sm" data-close-modal>Затвори</button>
+      </div>
+      <div class="modal__body">
+        <form class="form" id="adminRegionForm">
+          <input type="hidden" id="regId" name="id" />
+          <div class="field">
+            <label class="label" for="regCity">Град</label>
+            <select class="control" id="regCity" name="city" required>
+              <option value="Sofia">София</option>
+              <option value="Varna">Варна</option>
+              <option value="Plovdiv">Пловдив</option>
+              <option value="Burgas">Бургас</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="regCategory">Категория</label>
+            <select class="control" id="regCategory" name="category" required>
+              <option value="affected">Засегнат район</option>
+              <option value="risk">Рискова зона</option>
+              <option value="safe">Безопасна зона</option>
+              <option value="shelter">Убежище</option>
+            </select>
+          </div>
+          <div class="field field--full">
+            <label class="label" for="regName">Име</label>
+            <input class="control" id="regName" name="name" placeholder="Пример: кв. Аспарухово" required />
+          </div>
+          <div class="field field--full">
+            <label class="label" for="regNote">Бележка</label>
+            <textarea class="control" id="regNote" name="note" rows="3" placeholder="Кратко описание..."></textarea>
+          </div>
+          <div class="form__actions">
+            <button class="btn btn--sm" type="reset">Нулирай</button>
+            <button class="btn btn--sm btn--blue" type="submit">Запази</button>
+          </div>
+        </form>
+      </div>
+      <div class="modal__foot">
+        <button class="btn btn--sm" data-close-modal>Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
