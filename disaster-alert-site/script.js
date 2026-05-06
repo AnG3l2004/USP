@@ -4,6 +4,110 @@
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
   // ---------------------------
+  // Simple persistent "DB" (localStorage) - kept for offline/demo
+  // ---------------------------
+  const DB_KEY = "alertiX_db_v1";
+
+  /**
+   * @typedef {{ name:string, email:string, city?:string, regions?:string, createdAt:string, updatedAt:string }} Profile
+   * @typedef {{ profiles: Record<string, Profile>, currentUserEmail?: string }} AppDB
+   */
+
+  /** @returns {AppDB} */
+  function dbLoad() {
+    try {
+      const raw = localStorage.getItem(DB_KEY);
+      if (!raw) return { profiles: {} };
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return { profiles: {} };
+      if (!parsed.profiles || typeof parsed.profiles !== "object") parsed.profiles = {};
+      return /** @type {AppDB} */ (parsed);
+    } catch {
+      return { profiles: {} };
+    }
+  }
+
+  /** @param {AppDB} db */
+  function dbSave(db) {
+    try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch {}
+  }
+
+  /** @returns {Profile|null} */
+  function getCurrentProfile() {
+    const db = dbLoad();
+    const email = db.currentUserEmail;
+    if (!email) return null;
+    return db.profiles[email] || null;
+  }
+
+  /** @param {Profile} profile */
+  function upsertProfile(profile) {
+    const db = dbLoad();
+    db.profiles[profile.email] = profile;
+    db.currentUserEmail = profile.email;
+    dbSave(db);
+  }
+
+  /** @param {string} email */
+  function setCurrentUserEmail(email) {
+    const db = dbLoad();
+    db.currentUserEmail = email;
+    dbSave(db);
+  }
+
+  function populateProfileFormFromDB() {
+    const p = getCurrentProfile();
+    if (!p) return;
+    $("#pName") && ($("#pName").value = p.name || "");
+    $("#pEmail") && ($("#pEmail").value = p.email || "");
+    $("#pRegions") && ($("#pRegions").value = p.regions || "");
+  }
+
+  // ---------------------------
+  // Backend API (real auth/db) if server is running
+  // ---------------------------
+  async function apiFetch(pathname, opts = {}) {
+    const res = await fetch(pathname, {
+      credentials: "include",
+      headers: { "content-type": "application/json", ...(opts.headers || {}) },
+      ...opts,
+    });
+    const isJson = (res.headers.get("content-type") || "").includes("application/json");
+    const data = isJson ? await res.json().catch(() => ({})) : await res.text().catch(() => "");
+    if (!res.ok) throw { status: res.status, data };
+    return data;
+  }
+
+  async function tryGetMe() {
+    try {
+      const data = await apiFetch("/api/me");
+      return data?.user || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** @type {null | Array<{id:number,email:string,name:string,city?:string|null,regions?:string|null,role:string,created_at:string,updated_at:string}>} */
+  let adminUsersCache = null;
+
+  async function fetchAdminUsers() {
+    try {
+      const data = await apiFetch("/api/admin/users");
+      adminUsersCache = Array.isArray(data?.users) ? data.users : [];
+      return adminUsersCache;
+    } catch {
+      adminUsersCache = null;
+      return null;
+    }
+  }
+
+  function setAdminLinkVisible(isVisible) {
+    const link = document.querySelector('a[href="admin.html"]');
+    if (!link) return;
+    link.style.display = isVisible ? "" : "none";
+  }
+
+  // ---------------------------
   // Demo data (Varna/Sofia/Plovdiv/Burgas)
   // ---------------------------
   const LEVELS = /** @type {const} */ (["low", "medium", "high", "critical"]);
@@ -199,18 +303,27 @@
     if (host) return host;
     host = document.createElement("div");
     host.id = "toastHost";
+    document.body.appendChild(host);
+    syncToastHostPosition(host);
+    return host;
+  }
+
+  /** @param {HTMLElement} host */
+  function syncToastHostPosition(host) {
+    const isMobile = window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
     host.style.cssText = [
       "position:fixed",
-      "right:16px",
-      "bottom:16px",
+      isMobile ? "left:50%" : "right:16px",
+      isMobile ? "top:12px" : "bottom:16px",
+      isMobile ? "transform:translateX(-50%)" : "transform:none",
       "z-index:999",
       "display:flex",
       "flex-direction:column",
-      "gap:10px",
-      "max-width:min(420px, calc(100% - 32px))",
+      "gap:12px",
+      "width:auto",
+      "max-width:min(520px, calc(100% - 24px))",
+      "pointer-events:none",
     ].join(";");
-    document.body.appendChild(host);
-    return host;
   }
 
   /** @param {{title:string, message:string, tone?:"info"|"ok"|"warn"|"danger"}} opts */
@@ -230,22 +343,24 @@
       "rgba(47,123,255,0.12)";
 
     el.style.cssText = [
-      "border-radius:16px",
+      "border-radius:18px",
       `border:1px solid ${border}`,
-      `background:${bg}`,
-      "backdrop-filter: blur(10px)",
-      "padding:12px 12px",
-      "color: rgba(255,255,255,0.92)",
-      "box-shadow: 0 16px 46px rgba(0,0,0,0.35)",
+      "background: rgba(255,255,255,0.96)",
+      "backdrop-filter: blur(12px)",
+      "padding:14px 14px",
+      "color: rgba(15,23,42,0.96)",
+      "box-shadow: 0 18px 55px rgba(15, 23, 42, 0.22)",
+      "pointer-events:auto",
     ].join(";");
 
     el.innerHTML = `
-      <div style="display:flex; justify-content: space-between; gap:10px; align-items:flex-start;">
-        <div>
-          <div style="font-weight: 800; font-size: 13px; margin-bottom: 4px;">${escapeHtml(opts.title)}</div>
-          <div style="color: rgba(234,240,255,0.80); font-size: 12px; line-height:1.35;">${escapeHtml(opts.message)}</div>
+      <div style="display:flex; justify-content: space-between; gap:12px; align-items:flex-start;">
+        <div style="min-width: 0;">
+          <div style="font-weight: 900; font-size: 14px; margin-bottom: 6px; letter-spacing: -0.01em;">${escapeHtml(opts.title)}</div>
+          <div style="color: rgba(15,23,42,0.76); font-size: 13px; line-height:1.35;">${escapeHtml(opts.message)}</div>
+          <div style="margin-top:10px; height: 3px; border-radius: 999px; background:${bg};"></div>
         </div>
-        <button style="all:unset; cursor:pointer; padding:6px 8px; border-radius: 10px; border:1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.04); font-size: 12px;">
+        <button style="all:unset; cursor:pointer; padding:8px 10px; border-radius: 12px; border:1px solid rgba(15,23,42,0.12); background: rgba(15,23,42,0.04); font-size: 12px; font-weight: 800;">
           OK
         </button>
       </div>
@@ -392,6 +507,13 @@
         if (sub) sub.textContent = t[1];
       }
       try { history.replaceState(null, "", `#${key}`); } catch (_) {}
+
+      if (key === "ausers") {
+        fetchAdminUsers().then(() => {
+          renderAdminUsers();
+          renderAdminDashboard();
+        });
+      }
     };
 
     const fromHash = () => {
@@ -655,7 +777,8 @@
     $("#kpiActiveDisasters") && ($("#kpiActiveDisasters").textContent = String(activeDis.length));
     $("#kpiActiveAlerts") && ($("#kpiActiveAlerts").textContent = String(activeAl.length));
     $("#kpiCritical") && ($("#kpiCritical").textContent = String(critical.length));
-    $("#kpiUsers") && ($("#kpiUsers").textContent = String(users.length));
+    const userCount = Array.isArray(adminUsersCache) ? adminUsersCache.length : users.length;
+    $("#kpiUsers") && ($("#kpiUsers").textContent = String(userCount));
 
     const activeTable = $("#adminActiveDisastersTable");
     if (activeTable) {
@@ -795,23 +918,39 @@
   function renderAdminUsers() {
     const body = $("#adminUsersTable");
     if (!body) return;
+    if (Array.isArray(adminUsersCache)) {
+      body.innerHTML = adminUsersCache.map((u) => `
+        <tr>
+          <td>u-${u.id}</td>
+          <td>${escapeHtml(u.name || "")}</td>
+          <td>${escapeHtml(u.email || "")}</td>
+          <td>${escapeHtml(u.city || "—")}</td>
+          <td>${escapeHtml(u.role || "user")}</td>
+          <td>Активен</td>
+          <td>${escapeHtml(u.updated_at ? u.updated_at.replace("T", " ").slice(0, 16) : "—")}</td>
+          <td><span class="badge">DB</span></td>
+        </tr>
+      `).join("");
+      return;
+    }
+
     body.innerHTML = users.map((u) => `
-      <tr>
-        <td>${u.id}</td>
-        <td>${escapeHtml(u.name)}</td>
-        <td>${escapeHtml(u.email)}</td>
-        <td>${u.region}</td>
-        <td>${u.role}</td>
-        <td>${u.status === "active" ? "Активен" : "Блокиран"}</td>
-        <td>${escapeHtml(u.activity)}</td>
-        <td>
-          <div class="row-actions">
-            <button class="btn btn--sm" data-admin-toggle-user="${u.id}">${u.status === "active" ? "Блокирай" : "Разблокирай"}</button>
-            <button class="btn btn--sm" data-admin-role-user="${u.id}">Роля</button>
-          </div>
-        </td>
-      </tr>
-    `).join("");
+        <tr>
+          <td>${u.id}</td>
+          <td>${escapeHtml(u.name)}</td>
+          <td>${escapeHtml(u.email)}</td>
+          <td>${u.region}</td>
+          <td>${u.role}</td>
+          <td>${u.status === "active" ? "Активен" : "Блокиран"}</td>
+          <td>${escapeHtml(u.activity)}</td>
+          <td>
+            <div class="row-actions">
+              <button class="btn btn--sm" data-admin-toggle-user="${u.id}">${u.status === "active" ? "Блокирай" : "Разблокирай"}</button>
+              <button class="btn btn--sm" data-admin-role-user="${u.id}">Роля</button>
+            </div>
+          </td>
+        </tr>
+      `).join("");
   }
 
   function renderAdminAnalytics() {
@@ -1058,16 +1197,88 @@
 
     $("#profileForm")?.addEventListener("submit", (e) => {
       e.preventDefault();
-      toast({ title: "Профил", message: "Промените са запазени (демо).", tone: "ok" });
+      const fd = new FormData(e.target);
+      const name = String(fd.get("name") || "").trim();
+      const email = String(fd.get("email") || "").trim().toLowerCase();
+      const regions = String(fd.get("regions") || "").trim();
+      if (!email) {
+        toast({ title: "Профил", message: "Моля, въведи имейл.", tone: "warn" });
+        return;
+      }
+      (async () => {
+        try {
+          const data = await apiFetch("/api/profile", {
+            method: "POST",
+            body: JSON.stringify({ name, regions }),
+          });
+          const u = data?.user;
+          if (u?.email) setCurrentUserEmail(u.email);
+          toast({ title: "Профил", message: "Промените са запазени.", tone: "ok" });
+        } catch {
+          // fallback to local demo store
+          const now = new Date().toISOString();
+          const existing = dbLoad().profiles[email];
+          upsertProfile({
+            name: name || existing?.name || "User",
+            email,
+            city: existing?.city,
+            regions,
+            createdAt: existing?.createdAt || now,
+            updatedAt: now,
+          });
+          toast({ title: "Профил", message: "Промените са запазени (локално).", tone: "ok" });
+        }
+      })();
     });
 
     $("#loginForm")?.addEventListener("submit", (e) => {
       e.preventDefault();
-      toast({ title: "Вход", message: "Успешен вход (демо).", tone: "ok" });
+      const fd = new FormData(e.target);
+      const email = String(fd.get("email") || "").trim().toLowerCase();
+      const password = String(fd.get("password") || "");
+      (async () => {
+        try {
+          const data = await apiFetch("/api/auth/login", {
+            method: "POST",
+            body: JSON.stringify({ email, password }),
+          });
+          const u = data?.user;
+          if (u?.email) setCurrentUserEmail(u.email);
+          setAdminLinkVisible(u?.role === "admin");
+          toast({ title: "Вход", message: "Успешен вход.", tone: "ok" });
+        } catch (err) {
+          if (err?.status === 401) toast({ title: "Вход", message: "Грешен имейл или парола.", tone: "danger" });
+          else toast({ title: "Вход", message: "Сървърът не е стартиран. (В момента работиш в demo режим.)", tone: "warn" });
+        }
+      })();
     });
     $("#registerForm")?.addEventListener("submit", (e) => {
       e.preventDefault();
-      toast({ title: "Регистрация", message: "Профилът е създаден (демо).", tone: "ok" });
+      const fd = new FormData(e.target);
+      const name = String(fd.get("name") || "").trim();
+      const city = String(fd.get("city") || "").trim();
+      const email = String(fd.get("email") || "").trim().toLowerCase();
+      const password = String(fd.get("password") || "");
+      const password2 = String(fd.get("password2") || "");
+      if (password !== password2) {
+        toast({ title: "Регистрация", message: "Паролите не съвпадат.", tone: "warn" });
+        return;
+      }
+      (async () => {
+        try {
+          const data = await apiFetch("/api/auth/register", {
+            method: "POST",
+            body: JSON.stringify({ email, password, name, city }),
+          });
+          const u = data?.user;
+          if (u?.email) setCurrentUserEmail(u.email);
+          setAdminLinkVisible(false);
+          toast({ title: "Регистрация", message: "Профилът е създаден.", tone: "ok" });
+        } catch (err) {
+          if (err?.status === 409) toast({ title: "Регистрация", message: "Този имейл вече е зает.", tone: "warn" });
+          else toast({ title: "Регистрация", message: "Сървърът не е стартиран. (В момента работиш в demo режим.)", tone: "warn" });
+        }
+      })();
     });
     $("#forgotForm")?.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -1392,9 +1603,27 @@
 
     // Initial render
     renderAll();
+    populateProfileFormFromDB();
+    // If backend session exists, reflect it in UI
+    (async () => {
+      const me = await tryGetMe();
+      if (me) {
+        if (me.email) setCurrentUserEmail(me.email);
+        setAdminLinkVisible(me.role === "admin");
+        if (me.role === "admin" && ($("#adminContent") || $("[data-admin-section]"))) {
+          await fetchAdminUsers();
+          renderAdminUsers();
+          renderAdminDashboard();
+        }
+      } else {
+        setAdminLinkVisible(false);
+      }
+    })();
 
     // Keep charts crisp on resize (lightweight)
     window.addEventListener("resize", () => {
+      const host = $("#toastHost");
+      if (host) syncToastHostPosition(host);
       drawMonthlyChart($("#userStatsChart"), buildMonthlySeries());
       drawMonthlyChart($("#adminAnalyticsChart"), buildMonthlySeries());
     });
