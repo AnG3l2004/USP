@@ -126,7 +126,7 @@
       </nav>
 
       <div style="margin-top: 14px; padding: 0 4px; color: var(--muted); font-size: 12px;">
-        Демо: без backend. Действията обновяват UI локално.
+        Данните идват от API + MySQL, ако сървърът е пуснат; иначе се ползват примерни данни.
       </div>
     </aside>
 
@@ -270,6 +270,7 @@
                     <th>Засегнат регион</th>
                     <th>Щети</th>
                     <th>Продълж.</th>
+                    <th>Параметри</th>
                     <th>Ниво</th>
                     <th>Статус</th>
                     <th>Действия</th>
@@ -659,6 +660,35 @@
           <div class="field">
             <label class="label" for="disDuration">Продължителност</label>
             <input class="control" id="disDuration" name="duration" placeholder="пример: 2ч" />
+          </div>
+          <div class="field field--full">
+            <p class="label" style="margin-bottom:8px">Физически параметри (по избор)</p>
+            <div class="form" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px;">
+              <div class="field" style="margin:0">
+                <label class="label" for="disRichter">Рихтер / ML</label>
+                <input class="control" id="disRichter" name="richter" type="number" step="0.1" min="0" max="9.9" placeholder="напр. 4.2" />
+              </div>
+              <div class="field" style="margin:0">
+                <label class="label" for="disDepthKm">Дълбочина (km)</label>
+                <input class="control" id="disDepthKm" name="focal_depth_km" type="number" step="0.1" min="0" placeholder="хипоцентър" />
+              </div>
+              <div class="field" style="margin:0">
+                <label class="label" for="disWind">Пориви (km/h)</label>
+                <input class="control" id="disWind" name="wind_gust_kmh" type="number" step="1" min="0" placeholder="буря" />
+              </div>
+              <div class="field" style="margin:0">
+                <label class="label" for="disRain">Валеж 24h (mm)</label>
+                <input class="control" id="disRain" name="rainfall_mm" type="number" step="1" min="0" />
+              </div>
+              <div class="field" style="margin:0">
+                <label class="label" for="disWaterCm">Ниво вода + (cm)</label>
+                <input class="control" id="disWaterCm" name="water_level_cm" type="number" step="1" placeholder="наводнение" />
+              </div>
+              <div class="field" style="margin:0">
+                <label class="label" for="disBurnedHa">Пожар (ha)</label>
+                <input class="control" id="disBurnedHa" name="burned_area_ha" type="number" step="0.01" min="0" placeholder="площ" />
+              </div>
+            </div>
           </div>
           <div class="field">
             <label class="label" for="disLevel">Ниво на опасност</label>

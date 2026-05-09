@@ -29,6 +29,36 @@
     }
   }
 
+  /** Текст за карта/списъци: Рихтер, дълбочина, вятър, валеж, ниво на вода, площ на пожар. */
+  function formatDisasterMetrics(d) {
+    const parts = [];
+    if (d.richter != null && String(d.richter).trim() !== "") {
+      const x = Number(d.richter);
+      if (Number.isFinite(x)) parts.push(`ML ${x.toFixed(1)} (Рихтер)`);
+    }
+    if (d.focal_depth_km != null && String(d.focal_depth_km).trim() !== "") {
+      const x = Number(d.focal_depth_km);
+      if (Number.isFinite(x)) parts.push(`дълбочина ${x.toFixed(1)} km`);
+    }
+    if (d.wind_gust_kmh != null && String(d.wind_gust_kmh).trim() !== "") {
+      const x = Math.trunc(Number(d.wind_gust_kmh));
+      if (Number.isFinite(x)) parts.push(`пориви до ${x} km/h`);
+    }
+    if (d.rainfall_mm != null && String(d.rainfall_mm).trim() !== "") {
+      const x = Math.trunc(Number(d.rainfall_mm));
+      if (Number.isFinite(x)) parts.push(`валеж ${x} mm / 24h`);
+    }
+    if (d.water_level_cm != null && String(d.water_level_cm).trim() !== "") {
+      const x = Math.trunc(Number(d.water_level_cm));
+      if (Number.isFinite(x)) parts.push(`ниво +${x} cm`);
+    }
+    if (d.burned_area_ha != null && String(d.burned_area_ha).trim() !== "") {
+      const x = Number(d.burned_area_ha);
+      if (Number.isFinite(x)) parts.push(`площ ${x.toFixed(x >= 100 ? 0 : 2)} ha`);
+    }
+    return parts.join(" · ");
+  }
+
   /** @param {string} region */
   function regionPillClass(region) {
     const map = {
@@ -38,6 +68,136 @@
       Burgas: "pill--burgas",
     };
     return map[region] || "";
+  }
+
+  /** @type {Readonly<Record<string, [number, number]>>} център [lat, lng] за регион (България) */
+  const REGION_COORDS = Object.freeze({
+    Sofia: [42.6977, 23.3219],
+    Varna: [43.2141, 27.9147],
+    Plovdiv: [42.1354, 24.7453],
+    Burgas: [42.5048, 27.4626],
+  });
+
+  /** Леко разместване на маркери с един и същ регион */
+  function jitterLatLngForId(id) {
+    let h = 2166136261;
+    const s = String(id);
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    const dLat = ((h & 0xff) / 255 - 0.5) * 0.07;
+    const dLng = (((h >> 8) & 0xff) / 255 - 0.5) * 0.07;
+    return [dLat, dLng];
+  }
+
+  /** @param {"low"|"medium"|"high"|"critical"} level */
+  function levelHexColor(level) {
+    if (level === "critical") return "#dc2626";
+    if (level === "high") return "#ea580c";
+    if (level === "medium") return "#ca8a04";
+    return "#16a34a";
+  }
+
+  /** Скрива очевидни тестови/празни редове в блока за земетресения и на картата. */
+  function earthquakeRowIsPresentable(d) {
+    const p = String(d.place ?? "").trim();
+    const dmg = String(d.damage ?? "").trim();
+    const notes = String(d.notes ?? "").trim();
+    if (p.length < 2 && dmg.length < 3) return false;
+    if (/^[\s:.\-_0-9]{1,8}$/.test(p)) return false;
+    const compact = p.replace(/\s/g, "");
+    if (compact.length >= 3 && /^(.)\1+$/.test(compact)) return false;
+    if (p.includes(":::")) return false;
+    const blob = `${p} ${dmg} ${notes}`.toLowerCase();
+    if (/\bтест\b|\btest\b|qwerty|asdf|хфхф|хгф/.test(blob)) return false;
+    return true;
+  }
+
+  let homeLeafletMap = null;
+  let homeLeafletLayer = null;
+
+  function renderHomeDisasterMap() {
+    const mount = $("#heroUsgsMap");
+    if (!mount || typeof L === "undefined") return;
+
+    if (homeLeafletMap) {
+      try {
+        const c = homeLeafletMap.getContainer();
+        if (!c || !document.body.contains(c) || c !== mount) {
+          homeLeafletMap.remove();
+          homeLeafletMap = null;
+          homeLeafletLayer = null;
+        }
+      } catch (_) {
+        homeLeafletMap = null;
+        homeLeafletLayer = null;
+      }
+    }
+
+    const rows = disasters
+      .filter((d) => d.type === "earthquake" && REGION_COORDS[d.region] && earthquakeRowIsPresentable(d))
+      .slice()
+      .sort((a, b) => b.time - a.time)
+      .slice(0, 24);
+
+    if (!homeLeafletMap) {
+      homeLeafletMap = L.map(mount, { scrollWheelZoom: false });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(homeLeafletMap);
+      homeLeafletLayer = L.layerGroup().addTo(homeLeafletMap);
+    }
+
+    homeLeafletLayer.clearLayers();
+    /** @type {Array<[number, number]>} */
+    const bounds = [];
+    /** @type {Record<string, number>} */
+    const perRegionIdx = Object.create(null);
+
+    for (const d of rows) {
+      const base = REGION_COORDS[d.region];
+      const n = (perRegionIdx[d.region] = (perRegionIdx[d.region] || 0) + 1);
+      const [dLat, dLng] = jitterLatLngForId(d.id);
+      const ring = 0.055 * Math.sqrt(n);
+      const ang = n * 2.39996322972865332;
+      const lat = base[0] + dLat + Math.cos(ang) * ring;
+      const lng = base[1] + dLng + Math.sin(ang) * ring;
+      bounds.push([lat, lng]);
+      const col = levelHexColor(d.level);
+      const r = d.level === "critical" ? 12 : d.level === "high" ? 10 : d.level === "medium" ? 9 : 8;
+      const m = L.circleMarker([lat, lng], {
+        radius: r,
+        color: col,
+        fillColor: col,
+        fillOpacity: 0.5,
+        weight: 2,
+      });
+      const st = d.status === "active" ? "активно" : d.status === "contained" ? "локализирано" : "приключило";
+      const met = formatDisasterMetrics(d);
+      m.bindPopup(
+        `<strong>${escapeHtml(typeLabel(d.type))}</strong><br/>` +
+          `${escapeHtml(d.region)} • ${escapeHtml(d.place || "—")}<br/>` +
+          (met ? `<span style="color:#334155;font-size:12px">${escapeHtml(met)}</span><br/>` : "") +
+          `<span style="color:#64748b;font-size:12px">${escapeHtml(fmtTime(d.time))}</span><br/>` +
+          `${escapeHtml(levelLabel(d.level))} • ${st}`,
+      );
+      m.addTo(homeLeafletLayer);
+    }
+
+    if (bounds.length === 1) {
+      homeLeafletMap.setView(bounds[0], 7.5);
+    } else if (bounds.length > 1) {
+      homeLeafletMap.fitBounds(bounds, { padding: [56, 56], maxZoom: 8 });
+    } else {
+      homeLeafletMap.setView([42.65, 25.4], 6.5);
+    }
+
+    requestAnimationFrame(() => {
+      homeLeafletMap?.invalidateSize();
+      requestAnimationFrame(() => homeLeafletMap?.invalidateSize());
+    });
   }
 
   /** @param {"low"|"medium"|"high"|"critical"} level */
@@ -60,7 +220,96 @@
     return new Date(Date.now() - mins * 60 * 1000);
   }
 
-  const disasters = [
+  /** @type {string|null} */
+  let apiBaseResolved = null;
+  /** @type {Promise<string>|null} */
+  let apiBasePromise = null;
+
+  function collectApiCandidates() {
+    const out = [];
+    const push = (b) => {
+      const base = String(b || "").trim().replace(/\/+$/, "");
+      if (base && !out.includes(base)) out.push(base);
+    };
+    const fromMeta = document.querySelector('meta[name="alertix-api"]')?.getAttribute("content")?.trim();
+    const fromWin = typeof window !== "undefined" && window.ALERTIX_API ? String(window.ALERTIX_API).trim() : "";
+    const fromLs = localStorage.getItem("ALERTIX_API")?.trim();
+    /* Първо meta/дефолт портове — иначе погрешен ALERTIX_API (напр. Live Server) дава фалшив /health 200 + HTML и чупи POST към API */
+    [fromMeta, fromWin].forEach(push);
+    [
+      "http://127.0.0.1:5175",
+      "http://127.0.0.1:5173",
+      "http://localhost:5175",
+      "http://localhost:5173",
+    ].forEach(push);
+    [fromLs].forEach(push);
+    return out;
+  }
+
+  async function ensureApiBase() {
+    if (apiBaseResolved) return apiBaseResolved;
+    if (apiBasePromise) return apiBasePromise;
+
+    apiBasePromise = (async () => {
+      const candidates = collectApiCandidates();
+      for (const base of candidates) {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 2500);
+        try {
+          const r = await fetch(`${base}/health`, { signal: ctrl.signal });
+          if (!r.ok) continue;
+          const j = await r.json();
+          if (j && j.ok === true) {
+            apiBaseResolved = base;
+            try {
+              localStorage.setItem("ALERTIX_API", base);
+            } catch (_) {}
+            return base;
+          }
+        } catch (_) {
+          /* следващ кандидат */
+        } finally {
+          clearTimeout(t);
+        }
+      }
+      apiBaseResolved = "http://127.0.0.1:5175";
+      return apiBaseResolved;
+    })();
+
+    return apiBasePromise;
+  }
+
+  async function apiFetchJson(pathname, init) {
+    await ensureApiBase();
+    const base = apiBaseResolved || "http://127.0.0.1:5175";
+    const res = await fetch(`${base}${pathname}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init && init.headers ? init.headers : {}),
+      },
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      let detail = (t || "").trim() || res.statusText;
+      try {
+        const j = JSON.parse(t);
+        if (j && typeof j.error === "string" && j.error) detail = j.error;
+      } catch (_) {
+        /* не е JSON */
+      }
+      throw new Error(`API ${res.status}: ${detail}`);
+    }
+    return await res.json();
+  }
+
+  function parseTimeMaybe(v) {
+    if (v instanceof Date) return v;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? new Date() : d;
+  }
+
+  const demoDisasters = [
     {
       id: "evt-001",
       type: "flood",
@@ -72,6 +321,8 @@
       level: "high",
       status: "active",
       notes: "Преливане в ниските части; ограничен достъп до няколко улици.",
+      rainfall_mm: 55,
+      water_level_cm: 72,
     },
     {
       id: "evt-002",
@@ -84,6 +335,8 @@
       level: "medium",
       status: "active",
       notes: "Поривист вятър и локални паднали клони; възможно прекъсване на ток.",
+      wind_gust_kmh: 88,
+      rainfall_mm: 22,
     },
     {
       id: "evt-003",
@@ -96,6 +349,8 @@
       level: "low",
       status: "contained",
       notes: "Слаб трус; препоръчва се проверка на мебели/електроуреди.",
+      richter: 3.0,
+      focal_depth_km: 7.5,
     },
     {
       id: "evt-004",
@@ -108,6 +363,8 @@
       level: "critical",
       status: "active",
       notes: "Дим в периферни райони; възможна евакуация при промяна на вятъра.",
+      wind_gust_kmh: 42,
+      burned_area_ha: 215.4,
     },
     {
       id: "evt-005",
@@ -121,9 +378,51 @@
       status: "resolved",
       notes: "Сигнал за силна мъгла/намалена видимост; повишено внимание при шофиране.",
     },
+    {
+      id: "demo-eq-varna",
+      type: "earthquake",
+      time: nowMinus(95),
+      place: "Черноморие — Кранево",
+      region: "Varna",
+      damage: "M 3.2",
+      duration: "секунди",
+      level: "low",
+      status: "active",
+      notes: "Слаб трус край Варна (пример без връзка с API).",
+      richter: 3.2,
+      focal_depth_km: 11.0,
+    },
+    {
+      id: "demo-eq-burgas",
+      type: "earthquake",
+      time: nowMinus(210),
+      place: "Странджа — Малко Търново",
+      region: "Burgas",
+      damage: "M 3.5",
+      duration: "кратко",
+      level: "medium",
+      status: "active",
+      notes: "Усещаемост в Югоизточна България (пример).",
+      richter: 3.5,
+      focal_depth_km: 9.2,
+    },
+    {
+      id: "demo-eq-sofia",
+      type: "earthquake",
+      time: nowMinus(340),
+      place: "Софийско поле — Божурище",
+      region: "Sofia",
+      damage: "M 4.0",
+      duration: "кратко",
+      level: "medium",
+      status: "contained",
+      notes: "Лек трус в околностите на София (пример).",
+      richter: 4.0,
+      focal_depth_km: 8.4,
+    },
   ];
 
-  const alerts = [
+  const demoAlerts = [
     {
       id: "al-1001",
       time: nowMinus(40),
@@ -177,7 +476,7 @@
   ];
 
   /** @type {Array<{ id:string, name:string, email:string, region:"Sofia"|"Varna"|"Plovdiv"|"Burgas", role:"user"|"operator"|"admin", status:"active"|"blocked", activity:string }>} */
-  const users = [
+  const demoUsers = [
     { id: "u-01", name: "Иван Петров", email: "ivan.petrov@example.com", region: "Sofia", role: "user", status: "active", activity: "преди 2ч" },
     { id: "u-02", name: "Мария Георгиева", email: "maria.g@example.com", region: "Varna", role: "user", status: "active", activity: "преди 18м" },
     { id: "u-03", name: "Петър Димитров", email: "p.dimitrov@example.com", region: "Plovdiv", role: "operator", status: "active", activity: "преди 6м" },
@@ -186,13 +485,51 @@
   ];
 
   /** @type {Array<{ id:string, city:"Sofia"|"Varna"|"Plovdiv"|"Burgas", category:"affected"|"safe"|"shelter"|"risk", name:string, note:string }>} */
-  const regions = [
+  const demoRegions = [
     { id: "r-01", city: "Varna", category: "affected", name: "кв. Аспарухово — ниски части", note: "Възможни заливания при интензивни валежи." },
     { id: "r-02", city: "Burgas", category: "risk", name: "Крайморска зона — вятър/дим", note: "Риск от бързо разпространение при пориви." },
     { id: "r-03", city: "Sofia", category: "safe", name: "Открита зона — парк (пример)", note: "Подходяща за сборен пункт при евакуация." },
     { id: "r-04", city: "Plovdiv", category: "shelter", name: "Спортна зала (пример)", note: "Временно настаняване при нужда." },
     { id: "r-05", city: "Sofia", category: "risk", name: "Подлез (пример)", note: "Риск от заливане при проливен дъжд." },
   ];
+
+  let disasters = demoDisasters.slice();
+  let alerts = demoAlerts.slice();
+  let users = demoUsers.slice();
+  let regions = demoRegions.slice();
+
+  async function refreshFromApi() {
+    const isUserUi = Boolean($("#section-home") || $("[data-section]"));
+    const isAdminUi = Boolean($("#adminContent") || $("[data-admin-section]"));
+    if (!isUserUi && !isAdminUi) return;
+
+    try {
+      const next = {};
+
+      // Always needed for user UI
+      next.alerts = await apiFetchJson("/api/alerts");
+      next.disasters = await apiFetchJson("/api/disasters");
+
+      // Only needed for admin UI; if endpoints are missing, keep demo arrays
+      if (isAdminUi) {
+        try { next.users = await apiFetchJson("/api/users"); } catch { next.users = demoUsers.slice(); }
+        try { next.regions = await apiFetchJson("/api/regions"); } catch { next.regions = demoRegions.slice(); }
+      } else {
+        next.users = demoUsers.slice();
+        next.regions = demoRegions.slice();
+      }
+
+      alerts = next.alerts.map((a) => ({ ...a, time: parseTimeMaybe(a.time) }));
+      disasters = next.disasters.map((d) => ({ ...d, time: parseTimeMaybe(d.time) }));
+      users = (next.users || []).slice();
+      regions = (next.regions || []).slice();
+
+      renderAll();
+      toast({ title: "База данни", message: "Данните са заредени от MySQL (API).", tone: "ok" });
+    } catch (e) {
+      toast({ title: "Демо режим", message: "API не е налично. Показвам примерни данни.", tone: "warn" });
+    }
+  }
 
   function ensureToastHost() {
     let host = $("#toastHost");
@@ -203,11 +540,12 @@
       "position:fixed",
       "right:16px",
       "bottom:16px",
-      "z-index:999",
+      "z-index:10050",
       "display:flex",
       "flex-direction:column",
       "gap:10px",
       "max-width:min(420px, calc(100% - 32px))",
+      "pointer-events:none",
     ].join(";");
     document.body.appendChild(host);
     return host;
@@ -218,34 +556,35 @@
     const host = ensureToastHost();
     const el = document.createElement("div");
     const tone = opts.tone || "info";
+    // Светла тема: плътен фон и тъмен текст (прозрачните „стъклени“ панели с бял текст не се четяха)
     const border =
-      tone === "ok" ? "rgba(25,195,125,0.35)" :
-      tone === "warn" ? "rgba(255,138,0,0.40)" :
-      tone === "danger" ? "rgba(255,59,48,0.45)" :
-      "rgba(47,123,255,0.35)";
+      tone === "ok" ? "#16a34a" :
+      tone === "warn" ? "#ea580c" :
+      tone === "danger" ? "#dc2626" :
+      "#2563eb";
     const bg =
-      tone === "ok" ? "rgba(25,195,125,0.12)" :
-      tone === "warn" ? "rgba(255,138,0,0.12)" :
-      tone === "danger" ? "rgba(255,59,48,0.12)" :
-      "rgba(47,123,255,0.12)";
+      tone === "ok" ? "#ecfdf5" :
+      tone === "warn" ? "#fff7ed" :
+      tone === "danger" ? "#fef2f2" :
+      "#eff6ff";
 
     el.style.cssText = [
       "border-radius:16px",
       `border:1px solid ${border}`,
       `background:${bg}`,
-      "backdrop-filter: blur(10px)",
       "padding:12px 12px",
-      "color: rgba(255,255,255,0.92)",
-      "box-shadow: 0 16px 46px rgba(0,0,0,0.35)",
+      "color:#0f172a",
+      "box-shadow: 0 12px 40px rgba(15,23,42,0.14)",
+      "pointer-events:auto",
     ].join(";");
 
     el.innerHTML = `
       <div style="display:flex; justify-content: space-between; gap:10px; align-items:flex-start;">
         <div>
-          <div style="font-weight: 800; font-size: 13px; margin-bottom: 4px;">${escapeHtml(opts.title)}</div>
-          <div style="color: rgba(234,240,255,0.80); font-size: 12px; line-height:1.35;">${escapeHtml(opts.message)}</div>
+          <div style="font-weight: 800; font-size: 13px; margin-bottom: 4px; color:#0f172a;">${escapeHtml(opts.title)}</div>
+          <div style="color: rgba(15,23,42,0.72); font-size: 12px; line-height:1.35;">${escapeHtml(opts.message)}</div>
         </div>
-        <button style="all:unset; cursor:pointer; padding:6px 8px; border-radius: 10px; border:1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.04); font-size: 12px;">
+        <button type="button" style="all:unset; cursor:pointer; padding:6px 10px; border-radius: 10px; border:1px solid rgba(15,23,42,0.14); background:#fff; color:#0f172a; font-size: 12px; font-weight:600;">
           OK
         </button>
       </div>
@@ -326,6 +665,10 @@
 
       // Update hash without fighting the browser
       try { history.replaceState(null, "", `#${key}`); } catch (_) {}
+
+      if (key === "home") {
+        queueMicrotask(() => renderHomeDisasterMap());
+      }
     };
 
     const fromHash = () => {
@@ -440,7 +783,33 @@
           </tr>
         `)
         .join("");
-      latestBody.innerHTML = rows;
+      latestBody.innerHTML = rows || `<tr><td colspan="5" style="color:var(--muted)">Няма известия. Добави от админ панела.</td></tr>`;
+    }
+
+    const cardsHost = $("#homeActiveDisastersCards");
+    if (cardsHost) {
+      const activeDis = disasters
+        .filter((d) => d.status === "active")
+        .slice()
+        .sort((a, b) => b.time - a.time)
+        .slice(0, 2);
+      cardsHost.innerHTML = activeDis.length
+        ? activeDis.map((d) => `
+          <div class="card" style="grid-column: span 6; margin:0">
+            <h3>${typeLabel(d.type)} • ${d.region}</h3>
+            <p>${escapeHtml(d.notes || d.place || "—")}</p>
+            ${formatDisasterMetrics(d) ? `<p style="margin:8px 0 0;font-size:12px;color:var(--muted)">${escapeHtml(formatDisasterMetrics(d))}</p>` : ""}
+            <div class="card__meta">
+              <span class="pill ${regionPillClass(d.region)}">${d.region}</span>
+              <span class="badge ${badgeClass(d.level)}">${levelLabel(d.level)}</span>
+            </div>
+            <div class="card__footer">
+              <button class="btn btn--sm" data-open-event="${escapeHtml(d.id)}">Виж повече</button>
+              <button class="btn btn--sm btn--primary" data-quick-subscribe>Получавай известия</button>
+            </div>
+          </div>
+        `).join("")
+        : `<div class="card" style="grid-column: span 12; margin:0"><p style="margin:0;color:var(--muted)">Няма активни бедствия. Добави запис от админ панела.</p></div>`;
     }
 
     const worst = disasters
@@ -467,6 +836,36 @@
         </div>
       `).join("") || `<div class="list__item"><div><strong>Няма активни събития</strong><span>Системата не отчита риск.</span></div><span class="badge badge--low">Ниско</span></div>`;
     }
+
+    renderHeroUsgsPanel();
+    renderHomeDisasterMap();
+  }
+
+  function renderHeroUsgsPanel() {
+    const list = $("#heroUsgsList");
+    if (!list) return;
+    const items = disasters
+      .filter((d) => d.type === "earthquake" && earthquakeRowIsPresentable(d))
+      .slice()
+      .sort((a, b) => b.time - a.time)
+      .slice(0, 12);
+    list.innerHTML = items.length
+      ? items
+          .map(
+            (d) => `
+        <div class="hero-usgs__row hero-usgs__row--${d.level}">
+          <div>
+            <strong>${escapeHtml(d.damage || "—")} · ${escapeHtml(d.place)}</strong>
+            ${formatDisasterMetrics(d) ? `<span class="hero-usgs__metrics">${escapeHtml(formatDisasterMetrics(d))}</span>` : ""}
+            <span>${fmtTime(d.time)} · най-близък град: ${escapeHtml(d.region)} · ${escapeHtml(levelLabel(d.level))}</span>
+          </div>
+          <span class="badge ${badgeClass(d.level)}">${escapeHtml(
+            d.status === "active" ? "активно" : d.status === "contained" ? "локализирано" : "архив",
+          )}</span>
+        </div>`,
+          )
+          .join("")
+      : `<div class="hero-usgs__empty">Няма записи за земетресения в базата. Добави редове в MySQL (виж <code>backend/manual_earthquakes.sql</code>) или през админ панела.</div>`;
   }
 
   function getUserFilters() {
@@ -733,6 +1132,7 @@
           <td>${d.region}</td>
           <td>${escapeHtml(d.damage)}</td>
           <td>${escapeHtml(d.duration)}</td>
+          <td style="max-width:220px;font-size:12px;color:var(--muted)">${escapeHtml(formatDisasterMetrics(d) || "—")}</td>
           <td><span class="badge ${badgeClass(d.level)}">${levelLabel(d.level)}</span></td>
           <td>${d.status === "active" ? "Активно" : d.status === "contained" ? "Овладяно" : "Приключено"}</td>
           <td>
@@ -1061,14 +1461,7 @@
       toast({ title: "Профил", message: "Промените са запазени (демо).", tone: "ok" });
     });
 
-    $("#loginForm")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      toast({ title: "Вход", message: "Успешен вход (демо).", tone: "ok" });
-    });
-    $("#registerForm")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      toast({ title: "Регистрация", message: "Профилът е създаден (демо).", tone: "ok" });
-    });
+    // Auth UI removed from the user interface for simplicity
     $("#forgotForm")?.addEventListener("submit", (e) => {
       e.preventDefault();
       toast({ title: "Възстановяване", message: "Изпратен е линк (демо).", tone: "info" });
@@ -1116,10 +1509,7 @@
       toast({ title: "Филтри", message: "Филтрите са изчистени.", tone: "info" });
     });
 
-    $("#btnRefreshStats")?.addEventListener("click", () => {
-      renderUserStats();
-      toast({ title: "Статистика", message: "Обновено (демо).", tone: "info" });
-    });
+    // Stats UI removed from the user interface for simplicity
 
     $("#btnSaveProfile")?.addEventListener("click", () => {
       toast({ title: "Профил", message: "Запазено (демо).", tone: "ok" });
@@ -1142,7 +1532,12 @@
       const id = btn.getAttribute("data-open-event");
       const d = disasters.find((x) => x.id === id);
       if (!d) return;
-      toast({ title: `${typeLabel(d.type)} • ${d.region}`, message: `${d.place} — ${d.notes}`, tone: d.level === "critical" ? "danger" : d.level === "high" ? "warn" : "info" });
+      const met = formatDisasterMetrics(d);
+      toast({
+        title: `${typeLabel(d.type)} • ${d.region}`,
+        message: `${d.place} — ${d.notes || "—"}${met ? `\n${met}` : ""}`,
+        tone: d.level === "critical" ? "danger" : d.level === "high" ? "warn" : "info",
+      });
     });
   }
 
@@ -1177,10 +1572,10 @@
   }
 
   function setupAdminForms() {
-    $("#adminDisasterForm")?.addEventListener("submit", (e) => {
+    $("#adminDisasterForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const id = String(fd.get("id") || "").trim() || `evt-${String(Math.floor(Math.random() * 900) + 100)}`;
+      const id = String(fd.get("id") || "").trim();
 
       const type = /** @type any */ (fd.get("type"));
       const region = /** @type any */ (fd.get("region"));
@@ -1189,10 +1584,9 @@
       const timeVal = String(fd.get("time") || "");
       const time = timeVal ? new Date(timeVal) : new Date();
 
-      const record = {
-        id,
+      const payload = {
         type,
-        time,
+        time: time.toISOString(),
         place: String(fd.get("place") || ""),
         region,
         damage: String(fd.get("damage") || ""),
@@ -1200,26 +1594,45 @@
         level,
         status,
         notes: String(fd.get("notes") || ""),
+        richter: String(fd.get("richter") || "").trim() || null,
+        focal_depth_km: String(fd.get("focal_depth_km") || "").trim() || null,
+        wind_gust_kmh: String(fd.get("wind_gust_kmh") || "").trim() || null,
+        rainfall_mm: String(fd.get("rainfall_mm") || "").trim() || null,
+        water_level_cm: String(fd.get("water_level_cm") || "").trim() || null,
+        burned_area_ha: String(fd.get("burned_area_ha") || "").trim() || null,
       };
 
-      const idx = disasters.findIndex((d) => d.id === id);
-      if (idx >= 0) disasters[idx] = record;
-      else disasters.unshift(record);
-
-      renderAll();
-      toast({ title: "Бедствие", message: idx >= 0 ? "Записът е обновен." : "Добавено ново бедствие.", tone: "ok" });
-      closeModal($("#modal-admin-disaster"));
-      e.target.reset();
-      $("#disId") && ($("#disId").value = "");
+      try {
+        if (id) {
+          await apiFetchJson(`/api/disasters/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
+          toast({ title: "Бедствие", message: "Записът е обновен.", tone: "ok" });
+        } else {
+          await apiFetchJson(`/api/disasters`, { method: "POST", body: JSON.stringify(payload) });
+          toast({ title: "Бедствие", message: "Добавено ново бедствие.", tone: "ok" });
+        }
+        closeModal($("#modal-admin-disaster"));
+        e.target.reset();
+        $("#disId") && ($("#disId").value = "");
+        await refreshFromApi();
+      } catch {
+        // Fallback demo mode
+        const newId = id || `evt-${String(Math.floor(Math.random() * 900) + 100)}`;
+        const record = { id: newId, ...payload, time, damage: payload.damage, duration: payload.duration };
+        const idx = disasters.findIndex((d) => d.id === newId);
+        if (idx >= 0) disasters[idx] = record;
+        else disasters.unshift(record);
+        renderAll();
+        toast({ title: "Демо режим", message: "Запазено локално (без база).", tone: "warn" });
+        closeModal($("#modal-admin-disaster"));
+        e.target.reset();
+        $("#disId") && ($("#disId").value = "");
+      }
     });
 
-    $("#adminAlertForm")?.addEventListener("submit", (e) => {
+    $("#adminAlertForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const id = `al-${String(Math.floor(Math.random() * 9000) + 1000)}`;
-      const record = {
-        id,
-        time: new Date(),
+      const payload = {
         region: /** @type any */ (fd.get("region")),
         type: /** @type any */ (fd.get("type")),
         level: /** @type any */ (fd.get("level")),
@@ -1227,32 +1640,58 @@
         body: String(fd.get("body") || ""),
         status: /** @type any */ (fd.get("status")),
       };
-      alerts.unshift(record);
-      renderAll();
-      toast({ title: "Известие", message: "Известие добавено/изпратено (демо).", tone: "ok" });
-      closeModal($("#modal-admin-alert"));
-      e.target.reset();
+      try {
+        await apiFetchJson(`/api/alerts`, { method: "POST", body: JSON.stringify(payload) });
+        toast({ title: "Известие", message: "Известие добавено/изпратено.", tone: "ok" });
+        closeModal($("#modal-admin-alert"));
+        e.target.reset();
+        await refreshFromApi();
+      } catch {
+        // Fallback demo mode
+        const record = { id: `al-${String(Math.floor(Math.random() * 9000) + 1000)}`, time: new Date(), ...payload };
+        alerts.unshift(record);
+        renderAll();
+        toast({ title: "Демо режим", message: "Известие добавено локално (без база).", tone: "warn" });
+        closeModal($("#modal-admin-alert"));
+        e.target.reset();
+      }
     });
 
-    $("#adminRegionForm")?.addEventListener("submit", (e) => {
+    $("#adminRegionForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const id = String(fd.get("id") || "").trim() || `r-${String(Math.floor(Math.random() * 90) + 10)}`;
-      const record = {
-        id,
+      const id = String(fd.get("id") || "").trim();
+      const payload = {
         city: /** @type any */ (fd.get("city")),
         category: /** @type any */ (fd.get("category")),
         name: String(fd.get("name") || ""),
         note: String(fd.get("note") || ""),
       };
-      const idx = regions.findIndex((r) => r.id === id);
-      if (idx >= 0) regions[idx] = record;
-      else regions.unshift(record);
-      renderAll();
-      toast({ title: "Регион", message: idx >= 0 ? "Регионът е обновен." : "Добавен нов регион.", tone: "ok" });
-      closeModal($("#modal-admin-region"));
-      e.target.reset();
-      $("#regId") && ($("#regId").value = "");
+      try {
+        if (id) {
+          await apiFetchJson(`/api/regions/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
+          toast({ title: "Регион", message: "Регионът е обновен.", tone: "ok" });
+        } else {
+          await apiFetchJson(`/api/regions`, { method: "POST", body: JSON.stringify(payload) });
+          toast({ title: "Регион", message: "Добавен нов регион.", tone: "ok" });
+        }
+        closeModal($("#modal-admin-region"));
+        e.target.reset();
+        $("#regId") && ($("#regId").value = "");
+        await refreshFromApi();
+      } catch {
+        // Fallback demo mode
+        const newId = id || `r-${String(Math.floor(Math.random() * 90) + 10)}`;
+        const record = { id: newId, ...payload };
+        const idx = regions.findIndex((r) => r.id === newId);
+        if (idx >= 0) regions[idx] = record;
+        else regions.unshift(record);
+        renderAll();
+        toast({ title: "Демо режим", message: "Регионът е запазен локално (без база).", tone: "warn" });
+        closeModal($("#modal-admin-region"));
+        e.target.reset();
+        $("#regId") && ($("#regId").value = "");
+      }
     });
 
     $("#adminSettingsForm")?.addEventListener("submit", (e) => {
@@ -1280,9 +1719,15 @@
         $("#disLevel") && ($("#disLevel").value = d.level);
         $("#disStatus") && ($("#disStatus").value = d.status);
         $("#disPlace") && ($("#disPlace").value = d.place);
-        $("#disDamage") && ($("#disDamage").value = d.damage);
-        $("#disDuration") && ($("#disDuration").value = d.duration);
-        $("#disNotes") && ($("#disNotes").value = d.notes);
+        $("#disDamage") && ($("#disDamage").value = d.damage ?? "");
+        $("#disDuration") && ($("#disDuration").value = d.duration ?? "");
+        $("#disNotes") && ($("#disNotes").value = d.notes ?? "");
+        $("#disRichter") && ($("#disRichter").value = d.richter != null ? String(d.richter) : "");
+        $("#disDepthKm") && ($("#disDepthKm").value = d.focal_depth_km != null ? String(d.focal_depth_km) : "");
+        $("#disWind") && ($("#disWind").value = d.wind_gust_kmh != null ? String(d.wind_gust_kmh) : "");
+        $("#disRain") && ($("#disRain").value = d.rainfall_mm != null ? String(d.rainfall_mm) : "");
+        $("#disWaterCm") && ($("#disWaterCm").value = d.water_level_cm != null ? String(d.water_level_cm) : "");
+        $("#disBurnedHa") && ($("#disBurnedHa").value = d.burned_area_ha != null ? String(d.burned_area_ha) : "");
         const t = $("#disTime");
         if (t) t.value = toDatetimeLocalValue(d.time);
         return;
@@ -1291,10 +1736,18 @@
       const del = e.target.closest("[data-admin-delete-disaster]");
       if (del) {
         const id = del.getAttribute("data-admin-delete-disaster");
-        const idx = disasters.findIndex((x) => x.id === id);
-        if (idx >= 0) disasters.splice(idx, 1);
-        renderAll();
-        toast({ title: "Бедствие", message: "Записът е изтрит (демо).", tone: "warn" });
+        (async () => {
+          try {
+            await apiFetchJson(`/api/disasters/${encodeURIComponent(id)}`, { method: "DELETE" });
+            toast({ title: "Бедствие", message: "Записът е изтрит.", tone: "warn" });
+            await refreshFromApi();
+          } catch {
+            const idx = disasters.findIndex((x) => x.id === id);
+            if (idx >= 0) disasters.splice(idx, 1);
+            renderAll();
+            toast({ title: "Демо режим", message: "Записът е изтрит локално (без база).", tone: "warn" });
+          }
+        })();
         return;
       }
 
@@ -1337,10 +1790,18 @@
       const dReg = e.target.closest("[data-admin-delete-region]");
       if (dReg) {
         const id = dReg.getAttribute("data-admin-delete-region");
-        const idx = regions.findIndex((x) => x.id === id);
-        if (idx >= 0) regions.splice(idx, 1);
-        renderAll();
-        toast({ title: "Регион", message: "Регионът е изтрит (демо).", tone: "warn" });
+        (async () => {
+          try {
+            await apiFetchJson(`/api/regions/${encodeURIComponent(id)}`, { method: "DELETE" });
+            toast({ title: "Регион", message: "Регионът е изтрит.", tone: "warn" });
+            await refreshFromApi();
+          } catch {
+            const idx = regions.findIndex((x) => x.id === id);
+            if (idx >= 0) regions.splice(idx, 1);
+            renderAll();
+            toast({ title: "Демо режим", message: "Регионът е изтрит локално (без база).", tone: "warn" });
+          }
+        })();
       }
     });
   }
@@ -1358,7 +1819,6 @@
     if ($("#section-home") || $("[data-section]")) {
       renderUserHome();
       renderUserAlerts();
-      renderUserStats();
       renderUserProfile();
     }
     // Admin nodes exist?
@@ -1376,7 +1836,7 @@
   // ---------------------------
   // Boot
   // ---------------------------
-  function boot() {
+  async function boot() {
     setupModals();
     setupCopyButtons();
     setupQuickSubscribe();
@@ -1392,18 +1852,20 @@
 
     // Initial render
     renderAll();
+    await refreshFromApi();
 
     // Keep charts crisp on resize (lightweight)
     window.addEventListener("resize", () => {
-      drawMonthlyChart($("#userStatsChart"), buildMonthlySeries());
       drawMonthlyChart($("#adminAnalyticsChart"), buildMonthlySeries());
     });
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
+    document.addEventListener("DOMContentLoaded", () => {
+      void boot();
+    });
   } else {
-    boot();
+    void boot();
   }
 })();
 

@@ -3,9 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="alertix-api" content="http://127.0.0.1:5175" />
   <title>alertiX — Потребителски интерфейс</title>
   <meta name="description" content="alertiX — система за известяване при природни бедствия (примерни данни)." />
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 </head>
 <body>
   <a class="skip-link" href="#content">Към съдържанието</a>
@@ -62,14 +64,6 @@
           <svg class="icon"><use href="#i-bell"></use></svg>
           <span>Известия</span>
         </a>
-        <a href="#disasters" data-nav="disasters" title="Бедствия">
-          <svg class="icon"><use href="#i-alert"></use></svg>
-          <span>Бедствия</span>
-        </a>
-        <a href="#stats" data-nav="stats" title="Статистика">
-          <svg class="icon"><use href="#i-chart"></use></svg>
-          <span>Статистика</span>
-        </a>
         <a href="#safety" data-nav="safety" title="Инструкции за безопасност">
           <svg class="icon"><use href="#i-shield"></use></svg>
           <span>Инструкции</span>
@@ -78,20 +72,16 @@
           <svg class="icon"><use href="#i-user"></use></svg>
           <span>Профил</span>
         </a>
-        <a href="#auth" data-nav="auth" title="Вход / Регистрация">
-          <svg class="icon"><use href="#i-lock"></use></svg>
-          <span>Вход</span>
-        </a>
       </nav>
 
-      <div class="topbar__actions">
+      <div class="topbar__actions" style="display:none;">
         <div class="chip" title="Симулация на мониторинг">
           <span class="dot" aria-hidden="true"></span>
           <span>Система: активна</span>
         </div>
-        <a class="btn btn--sm btn--ghost" href="admin.html" title="Отвори администраторски панел (примерен)">
+        <a class="btn btn--sm btn--ghost" href="admin.html" title="Админ панел">
           <svg class="icon"><use href="#i-spark"></use></svg>
-          <span>Admin</span>
+          <span>Админ</span>
         </a>
       </div>
     </div>
@@ -106,7 +96,7 @@
             <h1 id="home-title">Бързи известия при бедствия</h1>
             <p>
               alertiX показва актуални предупреждения за земетресения, наводнения, пожари, бури и други рискове
-              за (Варна, София, Пловдив, Бургас). Данните са примерни — без backend.
+              за (Варна, София, Пловдив, Бургас).
             </p>
             <div class="hero__actions">
               <button class="btn btn--primary" id="btnSubscribe">
@@ -122,8 +112,38 @@
                 <span>Последни известия</span>
               </button>
             </div>
-            <div style="margin-top:14px; color: var(--muted); font-size: 12px;">
-              Съвет: натисни <span class="kbd">/</span> за бързо търсене (демо), <span class="kbd">Esc</span> за затваряне на модал.
+
+            <div class="hero-usgs" id="heroUsgsBlock" aria-labelledby="hero-usgs-title">
+              <div class="hero-usgs__inner">
+                <div class="hero-usgs__meta" aria-hidden="true">
+                  <span class="hero-usgs__pill">Земетресения</span>
+                  <span class="hero-usgs__pill hero-usgs__pill--muted">Карта · OpenStreetMap</span>
+                </div>
+                <div class="hero-usgs__head">
+                  <div class="hero-usgs__head-main">
+                    <h2 class="hero-usgs__title" id="hero-usgs-title">Земетресения в региона</h2>
+                    <p class="hero-usgs__sub">Земетресенията идват от MySQL (<code style="font-size:11px">type = earthquake</code>). <strong>region</strong> задава позиция на картата (Sofia, Varna, Plovdiv, Burgas). <strong>level</strong> оцветява маркера. В базата можеш да пазиш и <strong>richter</strong>, <strong>focal_depth_km</strong> и др. — виж <code style="font-size:11px">migration_disaster_metrics.sql</code>.</p>
+                    <div class="hero-usgs__extlinks">
+                      <a class="btn btn--sm btn--ghost" href="https://www.gdacs.org/" target="_blank" rel="noopener noreferrer">GDACS</a>
+                      <a class="btn btn--sm" href="https://www.emsc-csem.org/Earthquake/" target="_blank" rel="noopener noreferrer">EMSC</a>
+                    </div>
+                  </div>
+                </div>
+                <div class="hero-usgs__body">
+                  <div class="hero-usgs__map-block">
+                    <div id="heroUsgsMap" class="hero-usgs__map" role="region" aria-label="Карта: земетресения от базата (OpenStreetMap)"></div>
+                    <p class="hero-usgs__map-note">© OpenStreetMap — всеки запис се позицира край съответния град; няколко труса на един регион се раздалечават автоматично.</p>
+                  </div>
+                  <div class="hero-usgs__list-wrap">
+                    <h3 class="hero-usgs__list-heading">Последни записи</h3>
+                    <div class="hero-usgs__list hero-usgs__list--below-map" id="heroUsgsList"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hero-hint">
+              Съвет: <span class="kbd">/</span> за бързо търсене · <span class="kbd">Esc</span> затваря прозореца.
             </div>
           </div>
 
@@ -169,7 +189,7 @@
             <div class="panel__head">
               <div>
                 <h2>Последни известия</h2>
-                <p>Сортирано по време (примерни записи).</p>
+                <p>Сортирано по време.</p>
               </div>
               <button class="btn btn--sm" data-nav-jump="alerts">Виж повече</button>
             </div>
@@ -197,33 +217,10 @@
                 <h2>Активни бедствия</h2>
                 <p>Събития, които изискват внимание.</p>
               </div>
-              <button class="btn btn--sm btn--blue" data-nav-jump="disasters">Виж повече</button>
+              <button class="btn btn--sm btn--blue" data-nav-jump="alerts">Виж повече</button>
             </div>
-            <div class="grid" style="margin-top:0">
-              <div class="card" style="grid-column: span 6; margin:0">
-                <h3>Наводнение • Варна</h3>
-                <p>Повишено ниво на вода в ниските части. Следвайте указанията на службите.</p>
-                <div class="card__meta">
-                  <span class="pill pill--varna">Варна</span>
-                  <span class="badge badge--high">Високо</span>
-                </div>
-                <div class="card__footer">
-                  <button class="btn btn--sm" data-open-event="evt-001">Виж повече</button>
-                  <button class="btn btn--sm btn--primary" data-quick-subscribe>Получавай известия</button>
-                </div>
-              </div>
-              <div class="card" style="grid-column: span 6; margin:0">
-                <h3>Пожар • Бургас</h3>
-                <p>Дим в периферни райони. Възможна евакуация при промяна на вятъра.</p>
-                <div class="card__meta">
-                  <span class="pill pill--burgas">Бургас</span>
-                  <span class="badge badge--critical">Критично</span>
-                </div>
-                <div class="card__footer">
-                  <button class="btn btn--sm" data-open-event="evt-004">Виж повече</button>
-                  <button class="btn btn--sm btn--primary" data-quick-subscribe>Получавай известия</button>
-                </div>
-              </div>
+            <div class="grid" id="homeActiveDisastersCards" style="margin-top:0" aria-live="polite">
+              <!-- JS: активни бедства от API/демо -->
             </div>
           </div>
         </div>
@@ -375,145 +372,7 @@
       </div>
     </section>
 
-    <!-- DISASTERS -->
-    <section class="section" id="section-disasters" data-section="disasters" aria-labelledby="disasters-title">
-      <div class="panel">
-        <div class="panel__head">
-          <div>
-            <h2 id="disasters-title">Природни бедствия</h2>
-            <p>Категории: земетресения, наводнения, пожари, бури и други.</p>
-          </div>
-          <button class="btn btn--sm btn--blue" data-open-modal="modal-quick">Кратки насоки</button>
-        </div>
-
-        <div class="grid">
-          <div class="card">
-            <h3>Земетресения</h3>
-            <p>Трус, афтершокове, оценка на щети и безопасно поведение.</p>
-            <div class="card__footer">
-              <button class="btn btn--sm" data-nav-jump="safety">Виж повече</button>
-              <button class="btn btn--sm btn--primary" data-nav-jump="safety">Инструкции</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Наводнения</h3>
-            <p>Повишени води, свлачища, прекъснати пътища и евакуация.</p>
-            <div class="card__footer">
-              <button class="btn btn--sm" data-nav-jump="safety">Виж повече</button>
-              <button class="btn btn--sm btn--primary" data-nav-jump="alerts">Известия</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Пожари</h3>
-            <p>Дим, опасни ветрове, евакуация и ограничаване на риска.</p>
-            <div class="card__footer">
-              <button class="btn btn--sm" data-nav-jump="safety">Виж повече</button>
-              <button class="btn btn--sm btn--danger" data-open-modal="modal-contacts">Контакти</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Бури</h3>
-            <p>Силни ветрове, градушка, паднали дървета и прекъсване на ток.</p>
-            <div class="card__footer">
-              <button class="btn btn--sm" data-nav-jump="safety">Виж повече</button>
-              <button class="btn btn--sm btn--primary" data-nav-jump="alerts">Известия</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Други бедствия</h3>
-            <p>Свръх жега, студ, мъгли, индустриални инциденти.</p>
-            <div class="card__footer">
-              <button class="btn btn--sm" data-nav-jump="alerts">Виж повече</button>
-              <button class="btn btn--sm" data-nav-jump="stats">Статистика</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Активни събития (списък)</h3>
-            <p>Актуален списък (демо) на регистрирани бедствия.</p>
-            <div class="card__footer">
-              <button class="btn btn--sm btn--blue" data-nav-jump="alerts">Отвори</button>
-              <button class="btn btn--sm" data-nav-jump="alerts">История</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- MAP section removed (no real visualization) -->
-
-    <!-- STATS -->
-    <section class="section" id="section-stats" data-section="stats" aria-labelledby="stats-title">
-      <div class="panel">
-        <div class="panel__head">
-          <div>
-            <h2 id="stats-title">Статистика и справки</h2>
-            <p>Най-чести бедствия, статистика по региони, последна година, средно на година (демо).</p>
-          </div>
-          <button class="btn btn--sm" id="btnRefreshStats">Обнови (демо)</button>
-        </div>
-
-        <div class="two-col">
-          <div class="panel">
-            <div class="panel__head">
-              <div>
-                <h2 style="font-size:14px">Най-чести бедствия</h2>
-                <p>Обобщение по тип.</p>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table aria-label="Таблица: най-чести бедствия">
-                <thead>
-                  <tr>
-                    <th>Тип</th>
-                    <th>Брой (12 м.)</th>
-                    <th>Средно/месец</th>
-                  </tr>
-                </thead>
-                <tbody id="statsTopTypes">
-                  <!-- JS inject -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel__head">
-              <div>
-                <h2 style="font-size:14px">По региони</h2>
-                <p>Събития и най-високо ниво.</p>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table aria-label="Таблица: статистика по региони">
-                <thead>
-                  <tr>
-                    <th>Регион</th>
-                    <th>Събития</th>
-                    <th>Макс. ниво</th>
-                  </tr>
-                </thead>
-                <tbody id="statsByRegion">
-                  <!-- JS inject -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div style="height: 14px"></div>
-        <div class="panel">
-          <div class="panel__head">
-            <div>
-              <h2 style="font-size:14px">Последна година</h2>
-              <p>Мини графика (demo canvas).</p>
-            </div>
-          </div>
-          <div class="canvas-wrap">
-            <canvas id="userStatsChart" width="1000" height="320" aria-label="Графика: събития по месеци"></canvas>
-          </div>
-        </div>
-      </div>
-    </section>
+    <!-- DISASTERS / STATS removed to keep user UI simple -->
 
     <!-- SAFETY -->
     <section class="section" id="section-safety" data-section="safety" aria-labelledby="safety-title">
@@ -629,87 +488,12 @@
       </div>
     </section>
 
-    <!-- AUTH -->
-    <section class="section" id="section-auth" data-section="auth" aria-labelledby="auth-title">
-      <div class="panel">
-        <div class="panel__head">
-          <div>
-            <h2 id="auth-title">Вход / Регистрация</h2>
-            <p>Демо форми (без реална автентикация).</p>
-          </div>
-        </div>
-
-        <div class="two-col">
-          <div class="panel">
-            <div class="panel__head">
-              <div>
-                <h2 style="font-size:14px">Вход</h2>
-                <p>Въведи имейл и парола (пример).</p>
-              </div>
-            </div>
-            <form class="form" id="loginForm">
-              <div class="field field--full">
-                <label class="label" for="loginEmail">Имейл</label>
-                <input class="control" id="loginEmail" name="email" type="email" placeholder="you@example.com" required />
-              </div>
-              <div class="field field--full">
-                <label class="label" for="loginPass">Парола</label>
-                <input class="control" id="loginPass" name="password" type="password" placeholder="••••••••" required />
-              </div>
-              <div class="form__actions">
-                <button class="btn btn--sm btn--ghost" type="button" data-open-modal="modal-contacts">Забравена парола</button>
-                <button class="btn btn--sm btn--blue" type="submit">Вход</button>
-              </div>
-            </form>
-          </div>
-
-          <div class="panel">
-            <div class="panel__head">
-              <div>
-                <h2 style="font-size:14px">Регистрация</h2>
-                <p>Създай профил (демо).</p>
-              </div>
-            </div>
-            <form class="form" id="registerForm">
-              <div class="field">
-                <label class="label" for="regName">Име</label>
-                <input class="control" id="regName" name="name" placeholder="Име и фамилия" required />
-              </div>
-              <div class="field">
-                <label class="label" for="regCity">Град</label>
-                <select class="control" id="regCity" name="city" required>
-                  <option value="Sofia">София</option>
-                  <option value="Varna">Варна</option>
-                  <option value="Plovdiv">Пловдив</option>
-                  <option value="Burgas">Бургас</option>
-                </select>
-              </div>
-              <div class="field field--full">
-                <label class="label" for="regEmail">Имейл</label>
-                <input class="control" id="regEmail" name="email" type="email" placeholder="you@example.com" required />
-              </div>
-              <div class="field">
-                <label class="label" for="regPass">Парола</label>
-                <input class="control" id="regPass" name="password" type="password" placeholder="••••••••" required />
-              </div>
-              <div class="field">
-                <label class="label" for="regPass2">Повтори парола</label>
-                <input class="control" id="regPass2" name="password2" type="password" placeholder="••••••••" required />
-              </div>
-              <div class="form__actions">
-                <button class="btn btn--sm" type="reset">Изчисти</button>
-                <button class="btn btn--sm btn--primary" type="submit">Регистрация</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </section>
+    <!-- AUTH removed (will be handled via backend later) -->
 
     <footer class="footer" role="contentinfo">
       <div style="display:flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-        <div>© alertiX (Demo) • HTML/CSS/JS • Без backend</div>
-        <div>За админ панел: <a href="admin.html" style="text-decoration: underline; color: var(--text);">admin.html</a></div>
+        <div>© alertiX • HTML/CSS/JS</div>
+        <div><a href="admin.html" style="text-decoration: underline; color: var(--text);">Админ</a></div>
       </div>
     </footer>
   </main>
@@ -770,6 +554,7 @@
 
   <!-- Extra modals removed to keep UI simple (only Quick info + Contacts) -->
 
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="script.js"></script>
 </body>
 </html>
