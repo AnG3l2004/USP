@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="alertix-api" content="http://127.0.0.1:5175" />
+  <title>alertiX — Регистрация</title>
+  <meta name="description" content="alertiX — регистрация на потребител." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#content">Към съдържанието</a>
+
+  <header class="topbar" role="banner">
+    <div class="container topbar__inner">
+      <div class="brand" aria-label="alertiX">
+        <div class="brand__mark" aria-hidden="true"></div>
+        <div class="brand__title">
+          <strong>alertiX</strong>
+          <span>Регистрация (клиент)</span>
+        </div>
+      </div>
+      <div class="topbar__actions">
+        <a class="btn btn--sm btn--ghost" href="login.html" title="Вход">
+          <span>Вход</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="content" class="container" role="main">
+    <section class="section is-active" aria-label="Регистрация">
+      <div class="auth-hero">
+        <div class="auth-side" aria-label="Кратко представяне">
+          <h1 style="margin:0 0 6px; font-size: 22px;">Създай потребителски профил</h1>
+          <p style="margin:0; color: var(--muted); line-height: 1.5;">
+            Регистрацията е за „Клиент“. Администраторите и операторите се добавят предварително.
+          </p>
+
+          <div class="auth-kpis" aria-label="Какво получаваш">
+            <div class="auth-kpi"><strong>Известия</strong><span>по регион и тип</span></div>
+            <div class="auth-kpi"><strong>Профил</strong><span>настройки и история</span></div>
+            <div class="auth-kpi"><strong>Бърз достъп</strong><span>до спешни контакти</span></div>
+          </div>
+
+          <div class="auth-note">
+            Ако вече имаш профил — използвай бутона „Вход“ горе вдясно.
+          </div>
+        </div>
+
+        <div class="panel auth-panel">
+          <div class="panel__head">
+            <div>
+              <h2>Регистрация</h2>
+              <p>Всички полета са задължителни. Паролата е минимум 6 символа.</p>
+            </div>
+          </div>
+
+          <form class="form" id="registerForm">
+            <div class="field">
+              <label class="label" for="regName">Име</label>
+              <input class="control" id="regName" name="name" required placeholder="Иван Петров" />
+            </div>
+
+            <div class="field">
+              <label class="label" for="regEmail">Имейл</label>
+              <input class="control" id="regEmail" name="email" type="email" autocomplete="email" required placeholder="name@example.com" />
+            </div>
+
+            <div class="field field--full">
+              <label class="label" for="regRegion">Регион</label>
+              <select class="control" id="regRegion" name="region">
+                <option value="Sofia">София</option>
+                <option value="Varna">Варна</option>
+                <option value="Plovdiv">Пловдив</option>
+                <option value="Burgas">Бургас</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label class="label" for="regPassword">Парола</label>
+              <input class="control" id="regPassword" name="password" type="password" autocomplete="new-password" required placeholder="минимум 6 символа" />
+            </div>
+
+            <div class="field">
+              <label class="label" for="regPassword2">Повтори парола</label>
+              <input class="control" id="regPassword2" name="password2" type="password" autocomplete="new-password" required placeholder="повтори паролата" />
+            </div>
+
+            <div class="form__actions">
+              <a class="btn btn--sm" href="login.html">Log In</a>
+              <button class="btn btn--sm btn--primary" type="submit">Sign Up</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
+

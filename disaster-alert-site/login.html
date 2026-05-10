@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="alertix-api" content="http://127.0.0.1:5175" />
+  <title>alertiX — Вход</title>
+  <meta name="description" content="alertiX — вход в системата." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#content">Към съдържанието</a>
+
+  <header class="topbar" role="banner">
+    <div class="container topbar__inner">
+      <div class="brand" aria-label="alertiX">
+        <div class="brand__mark" aria-hidden="true"></div>
+        <div class="brand__title">
+          <strong>alertiX</strong>
+          <span>Вход в системата</span>
+        </div>
+      </div>
+      <div class="topbar__actions">
+        <a class="btn btn--sm btn--ghost" href="register.html" title="Регистрация">
+          <span>Регистрация</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="content" class="container" role="main">
+    <section class="section is-active" aria-label="Вход">
+      <div class="auth-hero">
+        <div class="auth-side" aria-label="Кратко представяне">
+          <h1 style="margin:0 0 6px; font-size: 22px;">Добре дошъл/дошла в alertiX</h1>
+          <p style="margin:0; color: var(--muted); line-height: 1.5;">
+            Платформа за известяване при бедствия с интерактивна карта, активни събития и административен панел.
+          </p>
+
+          <div class="auth-kpis" aria-label="Акценти">
+            <div class="auth-kpi"><strong>Карта</strong><span>маркер + детайли</span></div>
+            <div class="auth-kpi"><strong>Метрики</strong><span>Рихтер, валеж, вятър…</span></div>
+            <div class="auth-kpi"><strong>Админ</strong><span>CRUD + анализи</span></div>
+          </div>
+
+          <div class="auth-demo" aria-label="Бърз вход (демо)">
+            <button class="btn btn--sm btn--ghost" type="button" data-fill-login="user">Демо потребител</button>
+            <button class="btn btn--sm btn--ghost" type="button" data-fill-login="operator">Демо оператор</button>
+            <button class="btn btn--sm btn--ghost" type="button" data-fill-login="admin">Демо админ</button>
+          </div>
+
+          <div class="auth-note">
+            Админ: <strong>admin@alertix.local</strong> или <strong>admin@disasteralert.bg</strong> • Парола: <strong>Admin123!</strong> • Роля: <strong>Администратор</strong>
+          </div>
+        </div>
+
+        <div class="panel auth-panel">
+          <div class="panel__head">
+            <div>
+              <h2>Вход</h2>
+              <p>Въведи имейл и парола, избери роля и продължи.</p>
+            </div>
+          </div>
+
+          <form class="form" id="loginForm">
+            <div class="field">
+              <label class="label" for="loginEmail">Имейл</label>
+              <input class="control" id="loginEmail" name="email" type="email" autocomplete="email" required placeholder="name@example.com" />
+            </div>
+
+            <div class="field">
+              <label class="label" for="loginPassword">Парола</label>
+              <input class="control" id="loginPassword" name="password" type="password" autocomplete="current-password" required placeholder="••••••••" />
+            </div>
+
+            <div class="field field--full">
+              <label class="label" for="loginRole">Роля</label>
+              <select class="control" id="loginRole" name="role">
+                <option value="user">Клиент (потребител)</option>
+                <option value="admin">Администратор</option>
+                <option value="operator">Оператор</option>
+              </select>
+            </div>
+
+            <div class="form__actions">
+              <a class="btn btn--sm" href="register.html">Sign Up</a>
+              <button class="btn btn--sm btn--primary" type="submit">Log In</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
+

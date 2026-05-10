@@ -74,15 +74,19 @@
         </a>
       </nav>
 
-      <div class="topbar__actions" style="display:none;">
-        <div class="chip" title="Симулация на мониторинг">
+      <div class="topbar__actions" id="topbarActions">
+        <div class="chip" title="Профил (логнат потребител)">
           <span class="dot" aria-hidden="true"></span>
-          <span>Система: активна</span>
+          <span id="topbarUserLabel">Профил: —</span>
         </div>
-        <a class="btn btn--sm btn--ghost" href="admin.html" title="Админ панел">
+        <a class="btn btn--sm btn--ghost" href="admin.html" title="Админ панел" id="topbarAdminLink">
           <svg class="icon"><use href="#i-spark"></use></svg>
           <span>Админ</span>
         </a>
+        <button class="btn btn--sm btn--danger" id="btnLogout" type="button" title="Изход от профила">
+          <svg class="icon"><use href="#i-lock"></use></svg>
+          <span>Изход</span>
+        </button>
       </div>
     </div>
   </header>
@@ -388,10 +392,10 @@
         <div class="grid">
           <div class="card" style="grid-column: span 6;">
             <h3>Земетресение</h3>
-            <p>Падни, прикрий се, задръж. След първия трус очаквай вторични трусове.</p>
+            <p><strong>По време:</strong> Падни • прикрий се • задръж. <strong>След:</strong> провери за опасности и излез по стълбите.</p>
             <div class="card__meta">
               <span class="badge badge--medium">Средно</span>
-              <span class="pill">Вътрешни помещения</span>
+              <span class="pill">Пази глава и врат</span>
             </div>
             <div class="card__footer">
               <button class="btn btn--sm" data-open-modal="modal-quick">Подробно</button>
@@ -400,19 +404,19 @@
           </div>
           <div class="card" style="grid-column: span 6;">
             <h3>Наводнение</h3>
-            <p>Не преминавай през залети участъци. Премести се на високо. Изключи ток при риск.</p>
+            <p><strong>Правило:</strong> „Не влизай във вода“. Премести се на високо и изключи ток/газ при риск.</p>
             <div class="card__meta">
               <span class="badge badge--high">Високо</span>
-              <span class="pill">Външни райони</span>
+              <span class="pill">Бърза евакуация</span>
             </div>
             <div class="card__footer">
               <button class="btn btn--sm" data-open-modal="modal-quick">Подробно</button>
-              <button class="btn btn--sm btn--blue" data-nav-jump="safety">Инструкции</button>
+              <button class="btn btn--sm btn--danger" data-copy="112">112</button>
             </div>
           </div>
           <div class="card" style="grid-column: span 6;">
             <h3>Пожар</h3>
-            <p>Ако има дим — стой ниско. Ако е нужно — евакуирай се рано. Затвори врати/прозорци.</p>
+            <p><strong>Дим:</strong> стой ниско и покрий нос/уста. <strong>Евакуация:</strong> тръгни рано, не се връщай назад.</p>
             <div class="card__meta">
               <span class="badge badge--critical">Критично</span>
               <span class="pill">Дим и вятър</span>
@@ -423,8 +427,20 @@
             </div>
           </div>
           <div class="card" style="grid-column: span 6;">
+            <h3>Буря / силен вятър</h3>
+            <p><strong>Стой на закрито</strong> далеч от прозорци. Избягвай дървета, табели и кабели.</p>
+            <div class="card__meta">
+              <span class="badge badge--high">Високо</span>
+              <span class="pill">Падащи предмети</span>
+            </div>
+            <div class="card__footer">
+              <button class="btn btn--sm" data-open-modal="modal-quick">Подробно</button>
+              <button class="btn btn--sm btn--blue" data-open-modal="modal-contacts">Контакти</button>
+            </div>
+          </div>
+          <div class="card" style="grid-column: span 12;">
             <h3>Спешни контакти</h3>
-            <p>112, общински линии (пример), насоки за комуникация и проверка на информация.</p>
+            <p>Кога да звъниш на 112, какво да кажеш и как да проверяваш информацията от надеждни източници.</p>
             <div class="card__footer">
               <button class="btn btn--sm btn--primary" data-open-modal="modal-contacts">Отвори</button>
               <button class="btn btn--sm" data-open-modal="modal-quick">Спешна инфо</button>
@@ -507,11 +523,63 @@
         <button class="btn btn--sm" data-close-modal>Затвори</button>
       </div>
       <div class="modal__body">
-        <p><strong>При непосредствена опасност:</strong> обади се на 112 и следвай указанията на службите.</p>
-        <div class="list">
-          <div class="list__item"><div><strong>Земетресение</strong><span>Падни • прикрий се • задръж. След труса излез спокойно.</span></div><span class="badge badge--medium">Средно</span></div>
-          <div class="list__item"><div><strong>Наводнение</strong><span>Премести се на високо, не преминавай през вода, изключи ток при риск.</span></div><span class="badge badge--high">Високо</span></div>
-          <div class="list__item"><div><strong>Пожар</strong><span>Евакуация навреме. Ако има дим — стой ниско, покрий нос/уста.</span></div><span class="badge badge--critical">Критично</span></div>
+        <p><strong>При непосредствена опасност:</strong> обади се на 112 и следвай указанията на службите. Ако не е спешно — стой информиран(а) и помогни на уязвими хора.</p>
+
+        <div class="panel" style="margin: 10px 0; padding: 12px;">
+          <strong style="display:block; margin-bottom: 6px;">Какво да кажеш на 112 (30 секунди)</strong>
+          <div style="color: var(--muted); font-size: 13px; line-height: 1.5;">
+            Къде се намираш (адрес/ориентир) • Какво се случва • Има ли пострадали • Има ли непосредствен риск (пожар/ток/газ/срутване) • Име и телефон за обратна връзка.
+          </div>
+        </div>
+
+        <div class="list" aria-label="Инструкции по вид бедствие">
+          <div class="list__item">
+            <div>
+              <strong>Земетресение</strong>
+              <span>
+                <strong>По време:</strong> Падни • прикрий се под здрава маса • задръж. Далеч от прозорци и шкафове.<br/>
+                <strong>След:</strong> провери за наранявания, затвори газ/ток при миризма/искри, излез по стълби, очаквай вторични трусове.
+              </span>
+            </div>
+            <span class="badge badge--medium">Средно</span>
+          </div>
+
+          <div class="list__item">
+            <div>
+              <strong>Наводнение</strong>
+              <span>
+                <strong>Правило:</strong> не преминавай през вода (пеша или с кола).<br/>
+                <strong>Действия:</strong> премести се на високо, изключи ток/газ, избягвай подлези/мазета, следи официални предупреждения.
+              </span>
+            </div>
+            <span class="badge badge--high">Високо</span>
+          </div>
+
+          <div class="list__item">
+            <div>
+              <strong>Пожар</strong>
+              <span>
+                <strong>Дим:</strong> стой ниско, покрий нос/уста с влажна кърпа. Затвори врати след себе си.<br/>
+                <strong>Евакуация:</strong> тръгни рано, не използвай асансьор, не се връщай за вещи. Ако дрехи се запалят: „Спри • падни • търкаляй се“.
+              </span>
+            </div>
+            <span class="badge badge--critical">Критично</span>
+          </div>
+
+          <div class="list__item">
+            <div>
+              <strong>Буря / силен вятър</strong>
+              <span>
+                <strong>На открито:</strong> избягвай дървета, стълбове, табели и кабели. Не стой под балкони/скелета.<br/>
+                <strong>На закрито:</strong> стой далеч от прозорци, прибери леки предмети от тераса, зареди телефон и фенер.
+              </span>
+            </div>
+            <span class="badge badge--high">Високо</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5;">
+          Съветите са общи и не заместват указанията на службите. Следвай официалните инструкции и евакуационни маршрути.
         </div>
       </div>
       <div class="modal__foot">

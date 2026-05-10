@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import crypto from "node:crypto";
 import { createPool, toInt } from "./db.js";
 
 const app = express();
@@ -46,6 +47,40 @@ function assertEnum(value, allowed, field) {
     err.statusCode = 400;
     throw err;
   }
+}
+
+function normalizeEmail(v) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function hashPassword(password) {
+  const pwd = String(password || "");
+  if (pwd.length < 6) {
+    const err = new Error("password must be at least 6 characters");
+    err.statusCode = 400;
+    throw err;
+  }
+  const salt = crypto.randomBytes(16);
+  const iterations = 210_000;
+  const keylen = 32;
+  const digest = "sha256";
+  const hash = crypto.pbkdf2Sync(pwd, salt, iterations, keylen, digest);
+  return `pbkdf2$${digest}$${iterations}$${salt.toString("base64")}$${hash.toString("base64")}`;
+}
+
+function verifyPassword(password, stored) {
+  const pwd = String(password || "");
+  const s = String(stored || "");
+  const parts = s.split("$");
+  if (parts.length !== 5 || parts[0] !== "pbkdf2") return false;
+  const digest = parts[1];
+  const iterations = Number(parts[2]);
+  if (!Number.isFinite(iterations) || iterations < 50_000) return false;
+  const salt = Buffer.from(parts[3], "base64");
+  const expected = Buffer.from(parts[4], "base64");
+  const actual = crypto.pbkdf2Sync(pwd, salt, iterations, expected.length, digest);
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
 }
 
 function numOrNull(v) {
@@ -309,6 +344,81 @@ app.delete("/api/regions/:id", async (req, res) => {
   const id = String(req.params.id || "");
   const [r] = await pool.query(`DELETE FROM regions WHERE id = ?`, [id]);
   res.json({ ok: true, affectedRows: r?.affectedRows || 0 });
+});
+
+// ---- Auth (minimal) ----
+app.post("/api/auth/register", async (req, res) => {
+  const allowedRegion = ["Sofia", "Varna", "Plovdiv", "Burgas"];
+
+  const name = String(req.body?.name || "").trim();
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  const region = String(req.body?.region || "Sofia");
+
+  assertEnum(region, allowedRegion, "region");
+  if (!name) return res.status(400).json({ error: "name is required" });
+  if (!email || !email.includes("@")) return res.status(400).json({ error: "valid email is required" });
+
+  const password_hash = hashPassword(password);
+  try {
+    const [r] = await pool.query(
+      `INSERT INTO users (name, email, region, role, status, password_hash)
+       VALUES (?, ?, ?, 'user', 'active', ?)`,
+      [name, email, region, password_hash],
+    );
+    res.status(201).json({
+      user: {
+        id: r?.insertId,
+        name,
+        email,
+        region,
+        role: "user",
+        status: "active",
+      },
+    });
+  } catch (e) {
+    if (String(e?.code || "").toUpperCase() === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "email already exists" });
+    }
+    throw e;
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  const requestedRole = req.body?.role != null ? String(req.body.role) : null;
+  const allowedRole = ["user", "operator", "admin"];
+  if (requestedRole != null) assertEnum(requestedRole, allowedRole, "role");
+
+  if (!email || !email.includes("@")) return res.status(400).json({ error: "valid email is required" });
+  if (!password) return res.status(400).json({ error: "password is required" });
+
+  const [rows] = await pool.query(
+    `SELECT id, name, email, region, role, status, password_hash
+     FROM users
+     WHERE email = ?
+     LIMIT 1`,
+    [email],
+  );
+  const u = rows?.[0];
+  if (!u) return res.status(401).json({ error: "invalid credentials" });
+  if (u.status !== "active") return res.status(403).json({ error: "user is blocked" });
+  if (!verifyPassword(password, u.password_hash)) return res.status(401).json({ error: "invalid credentials" });
+  if (requestedRole && u.role !== requestedRole) {
+    return res.status(403).json({ error: "role mismatch" });
+  }
+
+  res.json({
+    user: {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      region: u.region,
+      role: u.role,
+      status: u.status,
+    },
+  });
 });
 
 // ---- Users (minimal) ----

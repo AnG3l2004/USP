@@ -303,6 +303,198 @@
     return await res.json();
   }
 
+  // ---------------------------
+  // Auth (minimal, demo-friendly)
+  // ---------------------------
+  const SESSION_KEY = "ALERTIX_SESSION_USER";
+
+  function getSessionUser() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+      const u = JSON.parse(raw);
+      return u && typeof u === "object" ? u : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function setSessionUser(user) {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    } catch (_) {}
+  }
+
+  function clearSessionUser() {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch (_) {}
+  }
+
+  function currentPageName() {
+    const p = String(location.pathname || "/");
+    const base = p.split("/").pop() || "";
+    return base || "index.html";
+  }
+
+  function redirectToLogin() {
+    const next = `${currentPageName()}${location.hash || ""}`;
+    location.href = `login.html?next=${encodeURIComponent(next)}`;
+  }
+
+  function applyUserHeader(user) {
+    const label = $("#topbarUserLabel");
+    if (label) label.textContent = user ? `Профил: ${user.name || user.email || "—"}` : "Профил: —";
+
+    const adminLink = $("#topbarAdminLink");
+    if (adminLink) {
+      const can = user && (user.role === "admin" || user.role === "operator");
+      adminLink.style.display = can ? "" : "none";
+    }
+  }
+
+  function setupLogoutButtons() {
+    const doLogout = () => {
+      clearSessionUser();
+      toast({ title: "Изход", message: "Излязохте от профила.", tone: "info" });
+      setTimeout(() => redirectToLogin(), 250);
+    };
+    $("#btnLogout")?.addEventListener("click", doLogout);
+    $("#btnAdminTopLogout")?.addEventListener("click", doLogout);
+  }
+
+  function setupAuthPages() {
+    const page = currentPageName().toLowerCase();
+    const isLogin = page === "login.html";
+    const isRegister = page === "register.html";
+    if (!isLogin && !isRegister) return false;
+
+    // If already logged in -> go to next/index
+    const existing = getSessionUser();
+    if (existing) {
+      const params = new URLSearchParams(location.search);
+      const next = params.get("next");
+      location.href = next ? next : (existing.role === "admin" || existing.role === "operator" ? "admin.html" : "index.html");
+      return true;
+    }
+
+    $("#loginForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = $("#loginEmail")?.value?.trim() || "";
+      const password = $("#loginPassword")?.value || "";
+      const role = $("#loginRole")?.value || "user";
+      try {
+        const r = await apiFetchJson("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password, role }) });
+        setSessionUser(r.user);
+        toast({ title: "Вход", message: `Добре дошъл/дошла, ${r.user?.name || r.user?.email || "потребител"}!`, tone: "ok" });
+        const params = new URLSearchParams(location.search);
+        const next = params.get("next");
+        setTimeout(() => {
+          location.href = next ? next : (r.user.role === "admin" || r.user.role === "operator" ? "admin.html" : "index.html");
+        }, 350);
+      } catch (err) {
+        toast({ title: "Грешка", message: authFriendlyError(err), tone: "warn" });
+      }
+    });
+
+    // Demo fill buttons (login page)
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-fill-login]");
+      if (!btn) return;
+      const kind = btn.getAttribute("data-fill-login");
+      const emailEl = $("#loginEmail");
+      const passEl = $("#loginPassword");
+      const roleEl = $("#loginRole");
+      if (!emailEl || !passEl || !roleEl) return;
+      if (kind === "admin") {
+        emailEl.value = "admin@alertix.local";
+        passEl.value = "Admin123!";
+        roleEl.value = "admin";
+      } else if (kind === "operator") {
+        emailEl.value = "operator@alertix.local";
+        passEl.value = "Operator123!";
+        roleEl.value = "operator";
+      } else {
+        emailEl.value = "maria.ivanova@example.com";
+        passEl.value = "User123!";
+        roleEl.value = "user";
+      }
+      toast({ title: "Демо", message: "Попълних данните за вход.", tone: "info" });
+    });
+
+    $("#registerForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = $("#regName")?.value?.trim() || "";
+      const email = $("#regEmail")?.value?.trim() || "";
+      const region = $("#regRegion")?.value || "Sofia";
+      const password = $("#regPassword")?.value || "";
+      const password2 = $("#regPassword2")?.value || "";
+      if (password !== password2) {
+        toast({ title: "Регистрация", message: "Паролите не съвпадат.", tone: "warn" });
+        return;
+      }
+      try {
+        await apiFetchJson("/api/auth/register", { method: "POST", body: JSON.stringify({ name, email, region, password }) });
+        toast({ title: "Регистрация", message: "Профилът е създаден. Влез с имейла и паролата.", tone: "ok" });
+        setTimeout(() => {
+          location.href = `login.html?email=${encodeURIComponent(email)}`;
+        }, 450);
+      } catch (err) {
+        toast({ title: "Грешка", message: authFriendlyError(err), tone: "warn" });
+      }
+    });
+
+    // Pre-fill login email if provided
+    const emailPrefill = new URLSearchParams(location.search).get("email");
+    if (emailPrefill && $("#loginEmail")) $("#loginEmail").value = emailPrefill;
+    return true;
+  }
+
+  function authFriendlyError(err) {
+    const msg = String(err?.message || err || "").trim();
+    // Our apiFetchJson throws: "API <code>: <detail>"
+    const m = msg.match(/^API\s+(\d+):\s*(.*)$/i);
+    const code = m ? Number(m[1]) : null;
+    const detail = m ? String(m[2] || "").trim() : msg;
+
+    if (code === 401) return "Грешен имейл или парола.";
+    if (code === 403) {
+      if (/blocked/i.test(detail)) return "Профилът е блокиран.";
+      if (/role mismatch/i.test(detail)) return "Избраната роля не съответства на този профил.";
+      return "Нямаш права за това действие.";
+    }
+    if (code === 409) return "Вече има профил с този имейл.";
+    if (/password must be at least/i.test(detail)) return "Паролата трябва да е поне 6 символа.";
+    if (/valid email is required/i.test(detail)) return "Моля, въведи валиден имейл адрес.";
+    if (/name is required/i.test(detail)) return "Моля, въведи име.";
+    if (/password is required/i.test(detail)) return "Моля, въведи парола.";
+
+    return detail || "Възникна грешка. Опитай отново.";
+  }
+
+  function requireAuthForApp() {
+    const page = currentPageName().toLowerCase();
+    if (page === "login.html" || page === "register.html") return true;
+
+    const user = getSessionUser();
+    if (!user) {
+      redirectToLogin();
+      return false;
+    }
+
+    // Admin page is restricted
+    if (page === "admin.html") {
+      const ok = user.role === "admin" || user.role === "operator";
+      if (!ok) {
+        location.href = "index.html";
+        return false;
+      }
+    }
+
+    applyUserHeader(user);
+    return true;
+  }
+
   function parseTimeMaybe(v) {
     if (v instanceof Date) return v;
     const d = new Date(v);
@@ -481,7 +673,7 @@
     { id: "u-02", name: "Мария Георгиева", email: "maria.g@example.com", region: "Varna", role: "user", status: "active", activity: "преди 18м" },
     { id: "u-03", name: "Петър Димитров", email: "p.dimitrov@example.com", region: "Plovdiv", role: "operator", status: "active", activity: "преди 6м" },
     { id: "u-04", name: "Елица Стоянова", email: "elitsa.s@example.com", region: "Burgas", role: "user", status: "blocked", activity: "преди 12д" },
-    { id: "u-05", name: "Admin Operator", email: "admin@disasteralert.bg", region: "Sofia", role: "admin", status: "active", activity: "сега" },
+    { id: "u-05", name: "Admin Operator", email: "admin@alertix.local", region: "Sofia", role: "admin", status: "active", activity: "сега" },
   ];
 
   /** @type {Array<{ id:string, city:"Sofia"|"Varna"|"Plovdiv"|"Burgas", category:"affected"|"safe"|"shelter"|"risk", name:string, note:string }>} */
@@ -1837,6 +2029,10 @@
   // Boot
   // ---------------------------
   async function boot() {
+    // Auth bootstrap
+    if (setupAuthPages()) return;
+    if (!requireAuthForApp()) return;
+
     setupModals();
     setupCopyButtons();
     setupQuickSubscribe();
@@ -1849,6 +2045,7 @@
     setupAdminButtons();
     setupAdminForms();
     setupAdminRowActions();
+    setupLogoutButtons();
 
     // Initial render
     renderAll();
